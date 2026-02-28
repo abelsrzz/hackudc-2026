@@ -1,15 +1,85 @@
 ---
 import Layout from "../layouts/Layout.astro";
+
+import Footer from "../components/Footer.astro";
+
+import patternSvg from "../assets/pattern.svg";
 ---
 
 <Layout title="Registrarse">
-  <h1>Registrarse</h1>
-  <p>¿Ya tienes una cuenta? <a href="/signin">Iniciar sesión</a></p>
-  <form action="/api/auth/register" method="post">
-    <label for="email">Correo electrónico</label>
-    <input type="email" name="email" id="email" />
-    <label for="password">Contraseña</label>
-    <input type="password" name="password" id="password" />
-    <button type="submit">Registrarse</button>
-  </form>
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Tiled SVG pattern background -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+    <div
+      class="relative z-20 flex flex-col items-center justify-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
+      >
+        Registrarse
+      </h1>
+      <p class="text-amber-100 text-lg mb-8 text-center">
+        ¿Ya tienes una cuenta? <a
+          href="/signin"
+          class="text-amber-300 hover:text-amber-100 underline decoration-2 decoration-amber-300 underline-offset-4 transition-all"
+          >Iniciar sesión</a
+        >
+      </p>
+
+      <form
+        action="/api/auth/register"
+        method="post"
+        class="w-full max-w-md space-y-6 bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+      >
+        <div class="space-y-2">
+          <label
+            for="email"
+            class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+            >Correo electrónico</label
+          >
+          <input
+            type="email"
+            name="email"
+            id="email"
+            class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            required
+          />
+        </div>
+
+        <div class="space-y-2">
+          <label
+            for="password"
+            class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+            >Contraseña</label
+          >
+          <input
+            type="password"
+            name="password"
+            id="password"
+            class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            required
+            minlength="6"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full mt-4 px-8 py-4 bg-amber-400 text-black font-black tracking-[0.2em] uppercase text-sm rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+        >
+          Registrarse
+        </button>
+      </form>
+      <Footer />
+    </div>
+  </main>
 </Layout>
