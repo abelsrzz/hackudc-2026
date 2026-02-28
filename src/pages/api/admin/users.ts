@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { supabase } from "../../../lib/supabase";
+import { supabase, supabaseAdmin } from "../../../lib/supabase";
 
 export const GET: APIRoute = async ({ cookies }) => {
   // Obtener token del usuario
@@ -30,7 +30,7 @@ export const GET: APIRoute = async ({ cookies }) => {
   }
 
   // Obtener lista de todos los usuarios con sus roles
-  const { data: users, error: usersError } = await supabase
+  const { data: users, error: usersError } = await supabaseAdmin
     .from("profiles")
     .select("id, name, role, created_at");
 

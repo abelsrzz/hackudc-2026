@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { supabase } from "../../lib/supabase";
+import { supabase, supabaseAdmin } from "../../../lib/supabase";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const access_token = cookies.get("sb-access-token")?.value;
@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const { userId, newRole } = await request.json();
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("profiles")
     .update({ role: newRole })
     .eq("id", userId);
