@@ -7,50 +7,35 @@ import { supabase } from "../lib/supabase";
 const { cookies, redirect } = Astro;
 
 // Verificar autenticación
-const accessToken = cookies.get("sb-access-token");
-const refreshToken = cookies.get("sb-refresh-token");
+const access_token = cookies.get("sb-access-token")?.value;
 
-if (!accessToken || !refreshToken) {
+if (!access_token) {
   return redirect("/signin");
 }
 
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return redirect("/signin");
-  }
-} catch (error) {
-  return redirect("/signin");
-}
+const {
+  data: { user },
+  error: userError,
+} = await supabase.auth.getUser(access_token);
 
-const user = session.data.user;
-
-if (!user) {
+if (userError || !user) {
   return redirect("/signin");
 }
 
 // Verificar que sea Admin
-// Nota: Esto asume que tienes una tabla 'profiles' ligada al usuario.
-// Si no existe, esta consulta fallará. Asegúrate de que tu DB Schema es correcto.
 const { data: profile } = await supabase
   .from("profiles")
   .select("role")
   .eq("id", user.id)
   .single();
 
-// Si no hay perfil o no es admin, fuera.
 if (!profile || profile.role !== "Admin") {
-  return redirect("/dashboard");
+  return new Response("No autorizado", { status: 403 });
 }
 
-// Obtener todos los usuarios
 const { data: usersData } = await supabase
   .from("profiles")
-  .select("id, name, email, role, created_at");
+  .select("id, name, role, created_at");
 
 // Ordenar usuarios por rol
 const roleOrder = { Admin: 1, Mentor: 2, Sponsor: 3, Hacker: 4 };
@@ -81,7 +66,7 @@ const users = usersData?.sort((a, b) => {
       class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
     >
       <h1
-        class="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
       >
         Panel de Administración
       </h1>
@@ -98,7 +83,7 @@ const users = usersData?.sort((a, b) => {
                     ID
                   </th>
                   <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
-                    Usuario
+                    Nombre
                   </th>
                   <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
                     Rol
@@ -117,20 +102,13 @@ const users = usersData?.sort((a, b) => {
                     >
                       {u.id.split("-")[0]}...
                     </td>
-                    <td class="p-4">
-                      <div class="flex flex-col">
-                        <span class="text-amber-100 font-bold">
-                          {u.name || "Sin nombre"}
-                        </span>
-                        <span class="text-amber-200/50 text-xs font-mono">
-                          {u.email}
-                        </span>
-                      </div>
+                    <td class="p-4 text-amber-100 font-bold">
+                      {u.name || "Sin nombre"}
                     </td>
                     <td class="p-4">
                       <select
                         data-user-id={u.id}
-                        class="px-3 py-1 bg-black/50 border border-amber-400/30 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 cursor-pointer hover:bg-amber-900/20 transition-colors"
+                        class="px-3 py-1 bg-black/50 border-2 border-amber-400/40 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 cursor-pointer hover:bg-amber-900/20 transition-all"
                         value={u.role}
                       >
                         <option value="Admin">👑 Admin</option>
@@ -160,13 +138,24 @@ const users = usersData?.sort((a, b) => {
         }
       </div>
 
-      <div class="mt-8">
+      <div
+        class="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-between w-full max-w-6xl"
+      >
         <a
           href="/dashboard"
-          class="text-amber-300 hover:text-white underline decoration-amber-300 underline-offset-4 transition-colors"
+          class="text-amber-300 hover:text-amber-100 underline decoration-2 decoration-amber-300 underline-offset-4 transition-all"
         >
           ← Volver al Panel
         </a>
+
+        <form action="/api/auth/signout" method="get">
+          <button
+            type="submit"
+            class="px-6 py-2 bg-red-900/50 hover:bg-red-800/60 border border-red-500/50 text-red-200 rounded-lg transition-all duration-300 backdrop-blur-sm font-bold uppercase text-sm tracking-wider shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
+          >
+            Cerrar Sesión
+          </button>
+        </form>
       </div>
 
       <div class="mt-10 w-full">
@@ -196,14 +185,12 @@ const users = usersData?.sort((a, b) => {
 
         if (!userId) return;
 
-        // Feedback visual inmediato (loading state style rough)
+        // Feedback visual inmediato
         target.style.opacity = "0.5";
         target.disabled = true;
 
         try {
-          // Nota: Esta ruta /api/admin/update-role debe existir en tu backend
-          // Si usas server actions o endpoints de astro, ajusta la URL
-          const response = await fetch("/api/admin/update-role", {
+          const response = await fetch("/admin/update-role", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId, newRole }),
@@ -211,18 +198,17 @@ const users = usersData?.sort((a, b) => {
 
           if (response.ok) {
             target.setAttribute("value", newRole);
-            // Pequeño flash verde o borde para indicar éxito
+            // Flash verde para indicar éxito
             target.style.borderColor = "#4ade80";
             setTimeout(() => (target.style.borderColor = ""), 1000);
           } else {
-            console.error("Error updating role");
+            const error = await response.text();
+            alert(`❌ Error: ${error}`);
             target.value = originalRole || "Hacker";
-            alert("Error al actualizar el rol.");
           }
         } catch (error) {
-          console.error(error);
+          alert("❌ Error al actualizar el rol");
           target.value = originalRole || "Hacker";
-          alert("Error de conexión.");
         } finally {
           target.style.opacity = "1";
           target.disabled = false;

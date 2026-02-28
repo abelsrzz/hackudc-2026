@@ -24,29 +24,109 @@ try {
   return Astro.redirect("/signin");
 }
 
-const user = session.data.user;
-// Formatear fecha de creación
-const createdAt = new Date(user?.created_at || "").toLocaleDateString("es-ES", {
-  year: 'numeric', month: 'long', day: 'numeric'
-});
+// Obtener todos los challenges
+const { data: challenges, error } = await supabase
+  .from("challenges")
+  .select("id, title, short_description, reward")
+  .order("title", { ascending: true });
 ---
 
-<Layout title="Mi Perfil">
+<Layout title="Challenges">
   <main class="relative min-h-screen overflow-hidden">
     <!-- Background layers -->
     <div
       class="absolute inset-0 pointer-events-none z-0 opacity-80"
       style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
-    ></div>
+    >
+    </div>
     <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
     <div
       class="absolute inset-0 pointer-events-none z-0"
       style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
-    ></div>
+    >
+    </div>
 
-    <div class="relative z-20 flex flex-col items-center justify-center min-h-screen pt-20 pb-10 px-4">
-challenges
-      <Footer />
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-12 text-center"
+      >
+        Challenges
+      </h1>
+
+      <div class="w-full max-w-6xl mb-8">
+        {
+          challenges && challenges.length > 0 ? (
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {challenges.map((challenge) => (
+                <a
+                  href={`/challenge?id=${challenge.id}`}
+                  class="group bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] hover:border-amber-400/50 hover:shadow-[0_0_30px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+                >
+                  <h2 class="text-xl font-bold uppercase tracking-wider text-amber-300 mb-3 group-hover:text-amber-200 transition-colors">
+                    {challenge.title}
+                  </h2>
+
+                  {challenge.short_description && (
+                    <p class="text-amber-100/70 text-sm mb-4 line-clamp-3">
+                      {challenge.short_description}
+                    </p>
+                  )}
+
+                  {challenge.reward && (
+                    <div class="mt-4 pt-4 border-t border-amber-400/20">
+                      <p class="text-amber-300/60 text-xs uppercase tracking-wider mb-1">
+                        Recompensa
+                      </p>
+                      <p class="text-amber-200 text-sm font-bold">
+                        {challenge.reward}
+                      </p>
+                    </div>
+                  )}
+
+                  <div class="mt-4 flex items-center gap-2 text-amber-300/80 text-sm group-hover:text-amber-200 transition-colors">
+                    <span>Ver detalles</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4 group-hover:translate-x-1 transition-transform"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div class="bg-black/40 backdrop-blur-sm p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] text-center">
+              <p class="text-amber-200/60 text-lg uppercase tracking-widest">
+                No hay challenges disponibles
+              </p>
+            </div>
+          )
+        }
+      </div>
+
+      <div class="mt-8">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-amber-100 underline decoration-2 decoration-amber-300 underline-offset-4 transition-all"
+        >
+          ← Volver al Panel
+        </a>
+      </div>
+
+      <div class="mt-10 w-full">
+        <Footer />
+      </div>
     </div>
   </main>
 </Layout>

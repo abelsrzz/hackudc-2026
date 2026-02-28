@@ -1,0 +1,306 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabase } from "../lib/supabase";
+import { marked } from "marked";
+
+const { cookies, redirect, url } = Astro;
+
+// Verificar autenticación
+const accessToken = cookies.get("sb-access-token");
+const refreshToken = cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return redirect("/signin");
+}
+
+let session;
+try {
+  session = await supabase.auth.setSession({
+    refresh_token: refreshToken.value,
+    access_token: accessToken.value,
+  });
+  if (session.error) {
+    return redirect("/signin");
+  }
+} catch (error) {
+  return redirect("/signin");
+}
+
+// Obtener ID del challenge desde query params
+const challengeId = url.searchParams.get("id");
+
+if (!challengeId) {
+  return redirect("/challenges");
+}
+
+// Obtener el challenge de la base de datos
+const { data: challenge, error } = await supabase
+  .from("challenges")
+  .select("id, title, short_description, content_markdown, reward, sponsor_id")
+  .eq("id", challengeId)
+  .single();
+
+if (error || !challenge) {
+  return redirect("/challenges");
+}
+
+// Parsear el markdown a HTML
+const contentHtml = marked.parse(challenge.content_markdown || "");
+---
+
+<Layout title={challenge.title}>
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <!-- Botón de volver -->
+      <div class="w-full max-w-4xl mb-6">
+        <a
+          href="/challenges"
+          class="inline-flex items-center gap-2 rounded-lg border-2 border-amber-200 px-6 py-3 font-bold uppercase tracking-[0.2em] text-amber-200 transition-all duration-300 hover:scale-105 hover:bg-amber-200 hover:text-black hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+          Volver
+        </a>
+      </div>
+
+      <!-- Contenedor principal -->
+      <div
+        class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 sm:p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+      >
+        <!-- Título del challenge -->
+        <h1
+          class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-6 text-center"
+        >
+          {challenge.title}
+        </h1>
+
+        <!-- Descripción corta -->
+        {
+          challenge.short_description && (
+            <p class="text-amber-100/80 text-lg mb-8 text-center italic">
+              {challenge.short_description}
+            </p>
+          )
+        }
+
+        <!-- Recompensa -->
+        {
+          challenge.reward && (
+            <div class="mb-8 p-4 bg-amber-900/20 border border-amber-400/30 rounded-lg">
+              <p class="text-amber-300 font-bold uppercase tracking-wider text-sm mb-1">
+                🏆 Recompensa
+              </p>
+              <p class="text-amber-100 text-lg">{challenge.reward}</p>
+            </div>
+          )
+        }
+
+        <!-- Contenido en markdown -->
+        <div class="prose prose-invert max-w-none" set:html={contentHtml} />
+      </div>
+
+      <div class="mt-10 w-full">
+        <Footer />
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style is:global>
+  .prose {
+    color: rgb(229, 231, 235);
+  }
+
+  .prose h1,
+  .prose h2,
+  .prose h3,
+  .prose h4,
+  .prose h5,
+  .prose h6 {
+    color: #fcd34d;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 2em;
+    margin-bottom: 1em;
+  }
+
+  .prose h2 {
+    font-size: 1.75rem;
+  }
+
+  .prose h3 {
+    font-size: 1.375rem;
+  }
+
+  .prose h4 {
+    font-size: 1.125rem;
+  }
+
+  .prose p {
+    margin-top: 1.25em;
+    margin-bottom: 1.25em;
+    line-height: 1.75;
+    color: rgb(229, 231, 235);
+  }
+
+  .prose a {
+    color: #fcd34d;
+    text-decoration: underline;
+    text-decoration-color: #fcd34d;
+    text-underline-offset: 4px;
+    transition: all 0.2s;
+  }
+
+  .prose a:hover {
+    color: #fde68a;
+    text-decoration-color: #fde68a;
+  }
+
+  .prose strong {
+    color: #fde68a;
+    font-weight: 700;
+  }
+
+  .prose em {
+    color: #fde68a;
+    font-style: italic;
+  }
+
+  .prose ul,
+  .prose ol {
+    margin-top: 1.25em;
+    margin-bottom: 1.25em;
+    padding-left: 1.625em;
+  }
+
+  .prose li {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    color: rgb(229, 231, 235);
+  }
+
+  .prose ul > li {
+    position: relative;
+    padding-left: 0.375em;
+  }
+
+  .prose ul > li::marker {
+    color: #fcd34d;
+  }
+
+  .prose ol > li::marker {
+    color: #fcd34d;
+    font-weight: 600;
+  }
+
+  .prose code {
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0.375rem;
+    padding: 0.125rem 0.375rem;
+    color: #fde68a;
+    font-size: 0.875em;
+    font-family: "Courier New", monospace;
+  }
+
+  .prose pre {
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin-top: 1.714em;
+    margin-bottom: 1.714em;
+  }
+
+  .prose pre code {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    color: rgb(229, 231, 235);
+    font-size: 0.875em;
+  }
+
+  .prose blockquote {
+    border-left: 4px solid #fcd34d;
+    padding-left: 1em;
+    margin-left: 0;
+    margin-right: 0;
+    font-style: italic;
+    color: #fde68a;
+    margin-top: 1.6em;
+    margin-bottom: 1.6em;
+  }
+
+  .prose hr {
+    border-color: rgba(251, 191, 36, 0.3);
+    margin-top: 3em;
+    margin-bottom: 3em;
+  }
+
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2em;
+    margin-bottom: 2em;
+  }
+
+  .prose thead {
+    border-bottom: 2px solid rgba(251, 191, 36, 0.3);
+  }
+
+  .prose th {
+    padding: 0.75rem;
+    text-align: left;
+    color: #fcd34d;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+  }
+
+  .prose td {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+    color: rgb(229, 231, 235);
+  }
+
+  .prose tbody tr:hover {
+    background-color: rgba(251, 191, 36, 0.05);
+  }
+
+  .prose img {
+    border-radius: 0.5rem;
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    margin-top: 2em;
+    margin-bottom: 2em;
+  }
+</style>
