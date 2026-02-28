@@ -1,0 +1,52 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabase } from "../lib/supabase";
+
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/signin");
+}
+
+let session;
+try {
+  session = await supabase.auth.setSession({
+    refresh_token: refreshToken.value,
+    access_token: accessToken.value,
+  });
+  if (session.error) {
+    return Astro.redirect("/signin");
+  }
+} catch (error) {
+  return Astro.redirect("/signin");
+}
+
+const user = session.data.user;
+// Formatear fecha de creación
+const createdAt = new Date(user?.created_at || "").toLocaleDateString("es-ES", {
+  year: 'numeric', month: 'long', day: 'numeric'
+});
+---
+
+<Layout title="Mi Perfil">
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    ></div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    ></div>
+
+    <div class="relative z-20 flex flex-col items-center justify-center min-h-screen pt-20 pb-10 px-4">
+challenges
+      <Footer />
+    </div>
+  </main>
+</Layout>
