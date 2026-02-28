@@ -53,9 +53,10 @@ const isAdmin = profile?.role === "admin";
 
     <!-- Contenido principal -->
     <div class="relative z-20 flex flex-col min-h-screen px-4 pb-10">
-
       <!-- Cabecera -->
-      <header class="flex items-center justify-between w-full max-w-5xl mx-auto pt-8 pb-6">
+      <header
+        class="flex items-center justify-between w-full max-w-5xl mx-auto pt-8 pb-6"
+      >
         <a
           href="/"
           class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
@@ -64,19 +65,23 @@ const isAdmin = profile?.role === "admin";
         </a>
 
         <div class="flex items-center gap-3">
-          {isAdmin && (
-            <a
-              href="/admin"
-              class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
-            >
-              ⚙ Admin
-            </a>
-          )}
+          {
+            isAdmin && (
+              <a
+                href="/admin"
+                class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
+              >
+                ⚙ Admin
+              </a>
+            )
+          }
           <a
             href="/profile"
             class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
           >
-            <span class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black">
+            <span
+              class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+            >
               {user?.email?.charAt(0).toUpperCase()}
             </span>
             Mi Perfil
@@ -92,26 +97,33 @@ const isAdmin = profile?.role === "admin";
           Dashboard
         </h1>
         <p class="text-amber-100/60 mt-3 text-base tracking-wide">
-          Bienvenido/a, <span class="text-amber-200 font-semibold">{user?.email}</span>
+          Bienvenido/a, <span class="text-amber-200 font-semibold"
+            >{user?.email}</span
+          >
         </p>
       </div>
 
       <!-- Grid de acciones -->
-      <div class="w-full max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-
+      <div
+        class="w-full max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+      >
         <!-- Challenges -->
         <a
           href="/challenges"
           class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
         >
           <div class="text-3xl">🏆</div>
-          <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+          <h2
+            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
+          >
             Challenges
           </h2>
           <p class="text-amber-100/50 text-sm leading-relaxed">
             Explora los retos disponibles y presenta tu solución.
           </p>
-          <span class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
+          <span
+            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
+          >
             Ver retos →
           </span>
         </a>
@@ -122,13 +134,17 @@ const isAdmin = profile?.role === "admin";
           class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
         >
           <div class="text-3xl">📅</div>
-          <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+          <h2
+            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
+          >
             Horario
           </h2>
           <p class="text-amber-100/50 text-sm leading-relaxed">
             Consulta el programa y los eventos del hackathon.
           </p>
-          <span class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
+          <span
+            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
+          >
             Ver horario →
           </span>
         </a>
@@ -139,13 +155,17 @@ const isAdmin = profile?.role === "admin";
           class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
         >
           <div class="text-3xl">🧑‍💻</div>
-          <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+          <h2
+            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
+          >
             Mentores
           </h2>
           <p class="text-amber-100/50 text-sm leading-relaxed">
             Encuentra mentores que te ayuden durante el evento.
           </p>
-          <span class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
+          <span
+            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
+          >
             Ver mentores →
           </span>
         </a>
@@ -156,13 +176,17 @@ const isAdmin = profile?.role === "admin";
           class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
         >
           <div class="text-3xl">ℹ️</div>
-          <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+          <h2
+            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
+          >
             Información
           </h2>
           <p class="text-amber-100/50 text-sm leading-relaxed">
             Todo lo que necesitas saber sobre el hackathon.
           </p>
-          <span class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
+          <span
+            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
+          >
             Ver info →
           </span>
         </a>
@@ -173,13 +197,17 @@ const isAdmin = profile?.role === "admin";
           class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
         >
           <div class="text-3xl">🤝</div>
-          <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+          <h2
+            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
+          >
             Patrocinadores
           </h2>
           <p class="text-amber-100/50 text-sm leading-relaxed">
             Conoce a las empresas que hacen posible HackUDC.
           </p>
-          <span class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors">
+          <span
+            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
+          >
             Ver sponsors →
           </span>
         </a>
@@ -192,18 +220,21 @@ const isAdmin = profile?.role === "admin";
         >
           <button type="submit" class="flex flex-col gap-3 text-left w-full">
             <div class="text-3xl">🚪</div>
-            <h2 class="text-red-400 font-black uppercase tracking-widest text-sm group-hover:text-red-300 transition-colors">
+            <h2
+              class="text-red-400 font-black uppercase tracking-widest text-sm group-hover:text-red-300 transition-colors"
+            >
               Cerrar Sesión
             </h2>
             <p class="text-amber-100/50 text-sm leading-relaxed">
               Finaliza tu sesión en HackUDC de forma segura.
             </p>
-            <span class="mt-auto text-red-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-red-300 transition-colors">
+            <span
+              class="mt-auto text-red-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-red-300 transition-colors"
+            >
               Salir →
             </span>
           </button>
         </form>
-
       </div>
     </div>
 
