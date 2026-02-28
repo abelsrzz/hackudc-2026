@@ -23,6 +23,23 @@ CREATE TABLE public.profiles (
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES public.sponsors(id)
 );
+CREATE TABLE public.project_member (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  member_id uuid,
+  project_id bigint,
+  CONSTRAINT project_member_pkey PRIMARY KEY (id),
+  CONSTRAINT project_member_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.profiles(id),
+  CONSTRAINT project_member_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
+);
+CREATE TABLE public.projects (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  name character varying,
+  challenge_id uuid,
+  CONSTRAINT projects_pkey PRIMARY KEY (id),
+  CONSTRAINT projects_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES public.challenges(id)
+);
 CREATE TABLE public.sponsors (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,

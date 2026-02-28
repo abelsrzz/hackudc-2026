@@ -1,0 +1,404 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabaseAdmin } from "../lib/supabase";
+
+// Auth
+const accessToken = Astro.cookies.get("sb-access-token");
+
+if (!accessToken) {
+  return Astro.redirect("/signin");
+}
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+
+if (userError || !user) {
+  return Astro.redirect("/signin");
+}
+
+// Perfil del usuario actual
+const { data: profile } = await supabaseAdmin
+  .from("profiles")
+  .select("role, name")
+  .eq("id", user.id)
+  .single();
+
+const isHacker = profile?.role?.toLowerCase() === "hacker";
+
+// Mensajes de error/éxito desde URL
+const errorMsg = Astro.url.searchParams.get("error");
+
+// Obtener todos los proyectos con sus miembros y challenge vinculado
+const { data: projects } = await supabaseAdmin
+  .from("projects")
+  .select(
+    `
+    id,
+    name,
+    created_at,
+    challenge_id,
+    challenges (
+      id,
+      title
+    ),
+    project_member (
+      id,
+      member_id,
+      profiles (
+        id,
+        name
+      )
+    )
+  `,
+  )
+  .order("created_at", { ascending: false });
+
+// Obtener todos los challenges para el selector
+const { data: challenges } = await supabaseAdmin
+  .from("challenges")
+  .select("id, title")
+  .order("title", { ascending: true });
+
+// Verificar si el usuario ya está en algún proyecto
+const userMembership = projects
+  ?.flatMap((p: any) => p.project_member)
+  .find((m: any) => m.member_id === user.id);
+
+const userProjectId = userMembership
+  ? projects?.find((p: any) =>
+      p.project_member.some((m: any) => m.member_id === user.id),
+    )?.id
+  : null;
+
+const userProject = userProjectId
+  ? projects?.find((p: any) => p.id === userProjectId)
+  : null;
+---
+
+<Layout title="Proyectos — HackUDC">
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-12 pb-16 px-4"
+    >
+      <!-- Cabecera -->
+      <div class="w-full max-w-4xl flex items-center justify-between mb-10">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
+        >
+          ← Dashboard
+        </a>
+        <a
+          href="/profile"
+          class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
+        >
+          <span
+            class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+          >
+            {user.email?.charAt(0).toUpperCase()}
+          </span>
+          Mi Perfil
+        </a>
+      </div>
+
+      <!-- Título -->
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-4 text-center"
+      >
+        Proyectos
+      </h1>
+      <p class="text-amber-100/50 mb-10 text-center text-sm tracking-wide">
+        Los proyectos de los equipos participantes en HackUDC
+      </p>
+
+      <!-- Error / aviso -->
+      {
+        errorMsg && (
+          <div class="w-full max-w-4xl mb-6 px-5 py-3 rounded-lg border border-red-500/40 bg-red-900/20 text-red-300 text-sm font-medium">
+            ⚠ {decodeURIComponent(errorMsg)}
+          </div>
+        )
+      }
+
+      <!-- Acceso restringido -->
+      {
+        !isHacker && (
+          <div class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 text-center">
+            <p class="text-amber-200/70 text-lg">
+              Solo los participantes con rol{" "}
+              <span class="text-amber-300 font-bold">Hacker</span> pueden
+              registrar proyectos.
+            </p>
+          </div>
+        )
+      }
+
+      {
+        isHacker && (
+          <div class="w-full max-w-4xl space-y-8">
+            {/* ── Tu proyecto ── */}
+            {userProject ? (
+              <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/40 shadow-[0_0_30px_rgba(251,191,36,0.12)] overflow-hidden">
+                <div class="px-6 py-4 border-b border-amber-400/20 flex items-center gap-3">
+                  <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                    ★ Tu Proyecto
+                  </span>
+                </div>
+                <div class="px-6 py-5">
+                  <h2 class="text-2xl font-black uppercase tracking-wider text-amber-200 mb-4">
+                    {(userProject as any).name}
+                  </h2>
+
+                  {/* Miembros actuales */}
+                  <div class="mb-5">
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                      Miembros ({(userProject as any).project_member.length}/4)
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      {(userProject as any).project_member.map((m: any) => (
+                        <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-400/10 border border-amber-400/20 rounded-full">
+                          <span class="w-5 h-5 rounded-full bg-amber-400/30 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                            {m.profiles?.name
+                              ? m.profiles.name.charAt(0).toUpperCase()
+                              : "?"}
+                          </span>
+                          <span class="text-amber-100 text-sm font-medium">
+                            {m.profiles?.name ?? "Hacker"}
+                            {m.member_id === user.id && (
+                              <span class="ml-1 text-amber-400/60 text-xs">
+                                (tú)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Challenge vinculado */}
+                  <div class="mb-5 pt-5 border-t border-amber-400/15">
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                      Challenge
+                    </p>
+                    {(userProject as any).challenges ? (
+                      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <span class="flex-1 px-4 py-2.5 bg-amber-400/10 border border-amber-400/30 rounded-lg text-amber-200 text-sm font-medium">
+                          🏆 {(userProject as any).challenges.title}
+                        </span>
+                        <form
+                          action="/api/projects/set-challenge"
+                          method="post"
+                        >
+                          <input
+                            type="hidden"
+                            name="project_id"
+                            value={(userProject as any).id}
+                          />
+                          <input type="hidden" name="challenge_id" value="" />
+                          <button
+                            type="submit"
+                            class="px-4 py-2.5 bg-black/40 hover:bg-red-900/30 border border-amber-400/20 hover:border-red-500/40 text-amber-200/50 hover:text-red-300 rounded-lg transition-all duration-300 text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                          >
+                            Desvincular
+                          </button>
+                        </form>
+                      </div>
+                    ) : (
+                      <form
+                        action="/api/projects/set-challenge"
+                        method="post"
+                        class="flex flex-col sm:flex-row gap-3"
+                      >
+                        <input
+                          type="hidden"
+                          name="project_id"
+                          value={(userProject as any).id}
+                        />
+                        <select
+                          name="challenge_id"
+                          required
+                          class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all text-sm appearance-none cursor-pointer"
+                        >
+                          <option
+                            value=""
+                            disabled
+                            selected
+                            class="text-amber-100/30"
+                          >
+                            Selecciona un challenge…
+                          </option>
+                          {challenges?.map((c: any) => (
+                            <option
+                              value={c.id}
+                              class="bg-[#0a0011] text-amber-100"
+                            >
+                              {c.title}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                        >
+                          Vincular
+                        </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Formulario para añadir miembro */}
+                  {(userProject as any).project_member.length < 4 ? (
+                    <form
+                      action="/api/projects/add-member"
+                      method="post"
+                      class="flex flex-col sm:flex-row gap-3 mt-2 pt-5 border-t border-amber-400/15"
+                    >
+                      <input
+                        type="hidden"
+                        name="project_id"
+                        value={(userProject as any).id}
+                      />
+                      <input
+                        type="email"
+                        name="member_email"
+                        placeholder="correo@del.nuevo.miembro"
+                        required
+                        class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+                      />
+                      <button
+                        type="submit"
+                        class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                      >
+                        + Añadir miembro
+                      </button>
+                    </form>
+                  ) : (
+                    <p class="text-amber-200/40 text-sm italic mt-2">
+                      El equipo ya está completo (4/4 miembros).
+                    </p>
+                  )}
+                </div>
+              </section>
+            ) : (
+              /* ── Crear proyecto ── */
+              <section class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
+                <div class="px-6 py-4 border-b border-amber-400/20">
+                  <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                    + Registrar nuevo proyecto
+                  </span>
+                </div>
+                <form
+                  action="/api/projects/create"
+                  method="post"
+                  class="px-6 py-5 flex flex-col sm:flex-row gap-3"
+                >
+                  <input
+                    type="text"
+                    name="name"
+                    placeholder="Nombre del proyecto"
+                    required
+                    maxlength={80}
+                    class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+                  />
+                  <button
+                    type="submit"
+                    class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                  >
+                    Crear proyecto
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {/* ── Lista de todos los proyectos ── */}
+            <section>
+              <h2 class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4">
+                Todos los proyectos ({projects?.length ?? 0})
+              </h2>
+
+              {projects && projects.length > 0 ? (
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {projects.map((project: any) => {
+                    const isMyProject = project.id === userProjectId;
+                    return (
+                      <div
+                        class={`bg-black/40 backdrop-blur-sm p-5 rounded-xl border transition-all duration-300 ${isMyProject ? "border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.15)]" : "border-amber-400/15 hover:border-amber-400/30"}`}
+                      >
+                        <div class="flex items-start justify-between gap-2 mb-3">
+                          <h3 class="text-amber-200 font-black uppercase tracking-wider text-sm">
+                            {project.name}
+                          </h3>
+                          {isMyProject && (
+                            <span class="shrink-0 text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold">
+                              Tu equipo
+                            </span>
+                          )}
+                        </div>
+                        {(project as any).challenges && (
+                          <p class="text-amber-300/70 text-xs mb-3 flex items-center gap-1.5">
+                            <span>🏆</span>
+                            <span class="truncate">
+                              {(project as any).challenges.title}
+                            </span>
+                          </p>
+                        )}
+
+                        <div class="flex flex-wrap gap-1.5">
+                          {project.project_member.map((m: any) => (
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/70 font-medium">
+                              <span class="w-4 h-4 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
+                                {m.profiles?.name
+                                  ? m.profiles.name.charAt(0).toUpperCase()
+                                  : "?"}
+                              </span>
+                              {m.profiles?.name ?? "Hacker"}
+                            </span>
+                          ))}
+                          {/* Slots vacíos */}
+                          {Array.from({
+                            length: 4 - project.project_member.length,
+                          }).map(() => (
+                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/20 border border-amber-400/10 rounded-full text-xs text-amber-100/20 font-medium italic">
+                              libre
+                            </span>
+                          ))}
+                        </div>
+
+                        <p class="text-amber-100/25 text-xs mt-3">
+                          {project.project_member.length}/4 miembros
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div class="text-center py-12 text-amber-100/30 text-sm italic">
+                  Aún no hay proyectos registrados. ¡Sé el primero!
+                </div>
+              )}
+            </section>
+          </div>
+        )
+      }
+    </div>
+
+    <Footer />
+  </main>
+</Layout>
