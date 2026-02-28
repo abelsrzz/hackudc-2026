@@ -1,39 +1,56 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
 import { supabase } from "../lib/supabase";
 
 const { cookies, redirect } = Astro;
 
 // Verificar autenticación
-const access_token = cookies.get("sb-access-token")?.value;
+const accessToken = cookies.get("sb-access-token");
+const refreshToken = cookies.get("sb-refresh-token");
 
-if (!access_token) {
+if (!accessToken || !refreshToken) {
   return redirect("/signin");
 }
 
-const {
-  data: { user },
-  error: userError,
-} = await supabase.auth.getUser(access_token);
+let session;
+try {
+  session = await supabase.auth.setSession({
+    refresh_token: refreshToken.value,
+    access_token: accessToken.value,
+  });
+  if (session.error) {
+    return redirect("/signin");
+  }
+} catch (error) {
+  return redirect("/signin");
+}
 
-if (userError || !user) {
+const user = session.data.user;
+
+if (!user) {
   return redirect("/signin");
 }
 
 // Verificar que sea Admin
+// Nota: Esto asume que tienes una tabla 'profiles' ligada al usuario.
+// Si no existe, esta consulta fallará. Asegúrate de que tu DB Schema es correcto.
 const { data: profile } = await supabase
   .from("profiles")
   .select("role")
   .eq("id", user.id)
   .single();
 
+// Si no hay perfil o no es admin, fuera.
 if (!profile || profile.role !== "Admin") {
-  return new Response("No autorizado", { status: 403 });
+  return redirect("/dashboard");
 }
 
+// Obtener todos los usuarios
 const { data: usersData } = await supabase
   .from("profiles")
-  .select("id, name, role, created_at");
+  .select("id, name, email, role, created_at");
 
 // Ordenar usuarios por rol
 const roleOrder = { Admin: 1, Mentor: 2, Sponsor: 3, Hacker: 4 };
@@ -46,181 +63,121 @@ const users = usersData?.sort((a, b) => {
 ---
 
 <Layout title="Panel Admin">
-  <style>
-    .admin-container {
-      max-width: 1200px;
-      margin: 2rem auto;
-      padding: 2rem;
-      font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-        Arial, sans-serif;
-    }
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
 
-    h1 {
-      color: #1a1a1a;
-      font-size: 2.5rem;
-      margin-bottom: 2rem;
-      text-align: center;
-      font-weight: 700;
-    }
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <h1
+        class="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
+      >
+        Panel de Administración
+      </h1>
 
-    .users-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    }
+      <div
+        class="w-full max-w-6xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] overflow-x-auto"
+      >
+        {
+          users && users.length > 0 ? (
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-amber-400/30">
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    ID
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Usuario
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Rol
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Fecha Registro
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-amber-400/10">
+                {users.map((u) => (
+                  <tr class="hover:bg-amber-400/5 transition-colors">
+                    <td
+                      class="p-4 font-mono text-amber-100/60 text-xs truncate max-w-[100px]"
+                      title={u.id}
+                    >
+                      {u.id.split("-")[0]}...
+                    </td>
+                    <td class="p-4">
+                      <div class="flex flex-col">
+                        <span class="text-amber-100 font-bold">
+                          {u.name || "Sin nombre"}
+                        </span>
+                        <span class="text-amber-200/50 text-xs font-mono">
+                          {u.email}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="p-4">
+                      <select
+                        data-user-id={u.id}
+                        class="px-3 py-1 bg-black/50 border border-amber-400/30 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 cursor-pointer hover:bg-amber-900/20 transition-colors"
+                        value={u.role}
+                      >
+                        <option value="Admin">👑 Admin</option>
+                        <option value="Mentor">🎓 Mentor</option>
+                        <option value="Sponsor">💼 Sponsor</option>
+                        <option value="Hacker">💻 Hacker</option>
+                      </select>
+                    </td>
+                    <td class="p-4 text-amber-100/80 text-sm font-mono">
+                      {new Date(u.created_at).toLocaleDateString("es-ES", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div class="text-center py-12">
+              <p class="text-amber-200/60 text-lg uppercase tracking-widest">
+                No hay usuarios registrados
+              </p>
+            </div>
+          )
+        }
+      </div>
 
-    .users-table thead {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
+      <div class="mt-8">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-white underline decoration-amber-300 underline-offset-4 transition-colors"
+        >
+          ← Volver al Panel
+        </a>
+      </div>
 
-    .users-table th {
-      padding: 1rem;
-      text-align: left;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .users-table tbody tr {
-      border-bottom: 1px solid #f0f0f0;
-      transition: background-color 0.2s;
-    }
-
-    .users-table tbody tr:hover {
-      background-color: #f8f9fa;
-    }
-
-    .users-table tbody tr:last-child {
-      border-bottom: none;
-    }
-
-    .users-table td {
-      padding: 1rem;
-      color: #333;
-    }
-
-    .user-id {
-      font-family: "Courier New", monospace;
-      color: #666;
-      font-size: 0.9rem;
-    }
-
-    .user-name {
-      font-weight: 500;
-      color: #1a1a1a;
-    }
-
-    .role-select {
-      padding: 0.5rem 1rem;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      background-color: white;
-      font-size: 0.95rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      min-width: 120px;
-    }
-
-    .role-select:hover {
-      border-color: #667eea;
-    }
-
-    .role-select:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .role-Admin {
-      background-color: #fef3c7;
-      color: #92400e;
-    }
-    .role-Mentor {
-      background-color: #dbeafe;
-      color: #1e40af;
-    }
-    .role-Sponsor {
-      background-color: #dcfce7;
-      color: #166534;
-    }
-    .role-Hacker {
-      background-color: #f3e8ff;
-      color: #6b21a8;
-    }
-
-    .date-cell {
-      color: #666;
-      font-size: 0.9rem;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 3rem;
-      color: #666;
-      font-size: 1.1rem;
-    }
-  </style>
-
-  <div class="admin-container">
-    <h1>Panel de Administración</h1>
-
-    {
-      users && users.length > 0 ? (
-        <table class="users-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Rol</th>
-              <th>Fecha de Creación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr>
-                <td class="user-id">{user.id.slice(0, 8)}...</td>
-                <td class="user-name">{user.name || "Sin nombre"}</td>
-                <td>
-                  <select
-                    data-user-id={user.id}
-                    class={`role-select role-${user.role}`}
-                    value={user.role}
-                  >
-                    <option value="Admin">👑 Admin</option>
-                    <option value="Mentor">🎓 Mentor</option>
-                    <option value="Sponsor">💼 Sponsor</option>
-                    <option value="Hacker">💻 Hacker</option>
-                  </select>
-                </td>
-                <td class="date-cell">
-                  {new Date(user.created_at).toLocaleDateString("es-ES", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p class="empty-state">No hay usuarios registrados.</p>
-      )
-    }
-  </div>
+      <div class="mt-10 w-full">
+        <Footer />
+      </div>
+    </div>
+  </main>
 
   <script>
-    // Establecer el valor seleccionado correctamente
-    document.querySelectorAll(".role-select").forEach((select) => {
+    // Establecer el valor seleccionado correctamente al cargar
+    document.querySelectorAll("select").forEach((select) => {
       const htmlSelect = select as HTMLSelectElement;
       const currentValue = htmlSelect.getAttribute("value");
       if (currentValue) {
@@ -229,7 +186,8 @@ const users = usersData?.sort((a, b) => {
     });
 
     // Manejar cambios de rol
-    document.querySelectorAll(".role-select").forEach((select) => {
+    const selects = document.querySelectorAll("select");
+    selects.forEach((select) => {
       select.addEventListener("change", async (e) => {
         const target = e.target as HTMLSelectElement;
         const userId = target.dataset.userId;
@@ -238,8 +196,14 @@ const users = usersData?.sort((a, b) => {
 
         if (!userId) return;
 
+        // Feedback visual inmediato (loading state style rough)
+        target.style.opacity = "0.5";
+        target.disabled = true;
+
         try {
-          const response = await fetch("/admin/update-role", {
+          // Nota: Esta ruta /api/admin/update-role debe existir en tu backend
+          // Si usas server actions o endpoints de astro, ajusta la URL
+          const response = await fetch("/api/admin/update-role", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId, newRole }),
@@ -247,19 +211,21 @@ const users = usersData?.sort((a, b) => {
 
           if (response.ok) {
             target.setAttribute("value", newRole);
-            // Actualizar clase CSS para el color del badge
-            target.className = `role-select role-${newRole}`;
-            alert(`✅ Rol actualizado a ${newRole}`);
+            // Pequeño flash verde o borde para indicar éxito
+            target.style.borderColor = "#4ade80";
+            setTimeout(() => (target.style.borderColor = ""), 1000);
           } else {
-            const error = await response.text();
-            alert(`❌ Error: ${error}`);
-            // Revertir el cambio
+            console.error("Error updating role");
             target.value = originalRole || "Hacker";
+            alert("Error al actualizar el rol.");
           }
         } catch (error) {
-          alert("❌ Error al actualizar el rol");
-          // Revertir el cambio
+          console.error(error);
           target.value = originalRole || "Hacker";
+          alert("Error de conexión.");
+        } finally {
+          target.style.opacity = "1";
+          target.disabled = false;
         }
       });
     });
