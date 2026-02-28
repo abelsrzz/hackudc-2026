@@ -1,0 +1,168 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabase } from "../lib/supabase";
+
+const accessToken = Astro.cookies.get("sb-access-token");
+const refreshToken = Astro.cookies.get("sb-refresh-token");
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect("/signin");
+}
+
+let session;
+try {
+  session = await supabase.auth.setSession({
+    refresh_token: refreshToken.value,
+    access_token: accessToken.value,
+  });
+  if (session.error) {
+    return Astro.redirect("/signin");
+  }
+} catch (error) {
+  return Astro.redirect("/signin");
+}
+
+const user = session.data.user;
+
+// Obtener rol del usuario
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("role")
+  .eq("id", user?.id)
+  .single();
+const isAdmin = profile?.role === "Admin";
+
+// Formatear fecha de creación
+const createdAt = new Date(user?.created_at || "").toLocaleDateString("es-ES", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<Layout title="Mi Perfil">
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center justify-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <h1
+        class="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
+      >
+        Mi Perfil
+      </h1>
+
+      <div
+        class="w-full max-w-2xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+      >
+        <!-- Avatar Section -->
+        <div class="flex justify-center mb-8">
+          <div
+            class="w-24 h-24 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-4xl shadow-[0_0_15px_rgba(251,191,36,0.2)]"
+          >
+            {user?.email?.charAt(0).toUpperCase()}
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <!-- Email Field -->
+          <div class="space-y-2">
+            <label
+              class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
+              >Correo Electrónico</label
+            >
+            <div
+              class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono"
+            >
+              {user?.email}
+            </div>
+          </div>
+
+          <!-- ID Field -->
+          <div class="space-y-2">
+            <label
+              class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
+              >ID de Usuario</label
+            >
+            <div
+              class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100/60 font-mono text-sm truncate"
+            >
+              {user?.id}
+            </div>
+          </div>
+
+          <!-- Meta Info -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <label
+                class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
+                >Miembro desde</label
+              >
+              <div
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono text-sm"
+              >
+                {createdAt}
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label
+                class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
+                >Proveedor</label
+              >
+              <div
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono text-sm capitalize"
+              >
+                {user?.app_metadata?.provider || "Email"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="mt-8 pt-6 border-t border-amber-400/20 flex flex-col sm:flex-row gap-4 items-center justify-between"
+        >
+          <a
+            href="/dashboard"
+            class="text-amber-300 hover:text-white underline decoration-amber-300 underline-offset-4 transition-colors"
+          >
+            ← Volver al Inicio
+          </a>
+
+          <div class="flex gap-3">
+            {isAdmin && (
+              <a
+                href="/admin"
+                class="px-6 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 backdrop-blur-sm font-bold uppercase text-sm tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.2)] hover:shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+              >
+                Panel Admin
+              </a>
+            )}
+            <form action="/api/auth/signout" method="get">
+              <button
+                type="submit"
+                class="px-6 py-2 bg-red-900/50 hover:bg-red-800/60 border border-red-500/50 text-red-200 rounded-lg transition-all duration-300 backdrop-blur-sm font-bold uppercase text-sm tracking-wider shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
+              >
+                Cerrar Sesión
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  </main>
+</Layout>
