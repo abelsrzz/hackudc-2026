@@ -41,6 +41,7 @@ const { data: projects } = await supabaseAdmin
     name,
     created_at,
     challenge_id,
+    sede,
     challenges (
       id,
       title
@@ -190,6 +191,38 @@ const userProject = userProjectId
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Sede */}
+                  <div class="mb-5 pt-5 border-t border-amber-400/15">
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                      Aula / Sede
+                    </p>
+                    <form
+                      action="/api/projects/set-sede"
+                      method="post"
+                      class="flex flex-col sm:flex-row gap-3"
+                    >
+                      <input
+                        type="hidden"
+                        name="project_id"
+                        value={(userProject as any).id}
+                      />
+                      <input
+                        type="text"
+                        name="sede"
+                        placeholder="Ej: Aula B1, Sala 204…"
+                        value={(userProject as any).sede ?? ""}
+                        maxlength={80}
+                        class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+                      />
+                      <button
+                        type="submit"
+                        class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                      >
+                        {(userProject as any).sede ? "Actualizar" : "Guardar"}
+                      </button>
+                    </form>
                   </div>
 
                   {/* Challenge vinculado */}
@@ -352,10 +385,18 @@ const userProject = userProjectId
                           )}
                         </div>
                         {(project as any).challenges && (
-                          <p class="text-amber-300/70 text-xs mb-3 flex items-center gap-1.5">
+                          <p class="text-amber-300/70 text-xs mb-2 flex items-center gap-1.5">
                             <span>🏆</span>
                             <span class="truncate">
                               {(project as any).challenges.title}
+                            </span>
+                          </p>
+                        )}
+                        {(project as any).sede && (
+                          <p class="text-amber-100/40 text-xs mb-3 flex items-center gap-1.5">
+                            <span>📍</span>
+                            <span class="truncate">
+                              {(project as any).sede}
                             </span>
                           </p>
                         )}

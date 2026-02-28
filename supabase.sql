@@ -37,6 +37,7 @@ CREATE TABLE public.projects (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   name character varying,
   challenge_id uuid,
+  sede text,
   CONSTRAINT projects_pkey PRIMARY KEY (id),
   CONSTRAINT projects_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES public.challenges(id)
 );
