@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const [{ data: message }, { data: profile }] = await Promise.all([
       supabaseAdmin
         .from("messages")
-        .select("id, user_id")
+        .select("id, user_id, attachment_path")
         .eq("id", messageId)
         .single(),
       supabaseAdmin
@@ -49,6 +49,13 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     if (isModerator) {
       // Admin/mentor: borrar completamente
+      // Primero eliminar foto del storage si existe
+      if (message.attachment_path) {
+        await supabaseAdmin.storage
+          .from("photos")
+          .remove([message.attachment_path]);
+      }
+
       const { error } = await supabaseAdmin
         .from("messages")
         .delete()
@@ -61,11 +68,21 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         });
       }
     } else {
-      // Propietario: soft delete — marcar el contenido
+      // Propietario: soft delete — marcar el contenido y eliminar foto
+      if (message.attachment_path) {
+        await supabaseAdmin.storage
+          .from("photos")
+          .remove([message.attachment_path]);
+      }
+
       const deletedContent = `__DELETED__:${profile?.name || "Usuario"}`;
       const { error } = await supabaseAdmin
         .from("messages")
-        .update({ content: deletedContent, edited_at: null })
+        .update({
+          content: deletedContent,
+          edited_at: null,
+          attachment_path: null,
+        })
         .eq("id", messageId);
 
       if (error) {

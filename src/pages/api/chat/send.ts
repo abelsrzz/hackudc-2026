@@ -17,9 +17,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     const body = await request.json();
-    const { content, channel, reply_to } = body;
+    const { content, channel, reply_to, attachment_path } = body;
 
-    if (!content || !channel) {
+    if ((!content && !attachment_path) || !channel) {
       return new Response("Faltan datos", { status: 400 });
     }
 
@@ -28,9 +28,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       .insert([
         {
           user_id: user.id,
-          content,
+          content: content || "",
           channel,
           reply_to: reply_to || null,
+          attachment_path: attachment_path || null,
         },
       ])
       .select();

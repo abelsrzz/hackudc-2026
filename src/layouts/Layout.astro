@@ -53,6 +53,16 @@ const { title, light = false } = Astro.props;
       src="https://umami.gpul.org/script.js"
       data-website-id="795d2477-b7c9-4956-a7d4-36ade7da1bee"></script>
 
+    <!-- Marked.js for Markdown parsing -->
+    <script is:inline src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"
+    ></script>
+
+    <!-- Highlight.js for syntax highlighting -->
+    <script
+      is:inline
+      src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+    ></script>
+
     <!-- Meta Tags Generated with https://metatags.io -->
     <!-- Primary Meta Tags -->
     <title>{title}</title>

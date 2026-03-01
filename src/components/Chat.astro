@@ -1,11 +1,18 @@
 ---
 import { createClient } from "@supabase/supabase-js";
+import { marked } from "marked";
 
 interface Props {
   channel: string;
 }
 
 const { channel } = Astro.props;
+
+// Configurar marked para mejor soporte de código
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
 
 // Crear un cliente fresco por petición para evitar conflictos con el singleton
 const supabase = createClient(
@@ -56,6 +63,7 @@ if (accessToken) {
         edited_at,
         user_id,
         reply_to,
+        attachment_path,
         profiles (
           name,
           role,
@@ -112,6 +120,51 @@ function roleBadge(role: string | undefined) {
   return null;
 }
 ---
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+
+<style>
+  .message-content pre {
+    position: relative;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    margin: 0.5rem 0;
+  }
+
+  .message-content pre code {
+    border-radius: 0.75rem;
+  }
+
+  .copy-code-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: rgb(252, 211, 77);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 10;
+  }
+
+  .copy-code-btn:hover {
+    background: rgba(251, 191, 36, 0.2);
+    border-color: rgba(251, 191, 36, 0.5);
+    color: rgb(254, 243, 199);
+  }
+
+  .copy-code-btn.copied {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: rgb(134, 239, 172);
+  }
+</style>
 
 {isAuthenticated && (
 <div class="chat-component w-full">
@@ -194,13 +247,33 @@ function roleBadge(role: string | undefined) {
             {(() => {
               const isDeleted = msg.content.startsWith("__DELETED__:");
               const deletedBy = isDeleted ? msg.content.slice("__DELETED__:".length) : "";
+              const supabaseUrl = import.meta.env.SUPABASE_URL;
               return isDeleted ? (
                 <div class={`${isOwn ? "mr-10 text-right" : "ml-10"} text-amber-400/35 text-sm italic leading-relaxed select-none`}>
                   🗑️ Mensaje borrado por {deletedBy}
                 </div>
               ) : (
-                <div class={`text-amber-100/90 text-sm leading-relaxed ${isOwn ? "mr-10 text-right" : "ml-10"}`}>
-                  {msg.content}
+                <div class={`${isOwn ? "mr-10 flex flex-col items-end" : "ml-10"}`}>
+                  {msg.attachment_path && (
+                    <a
+                      href={`${supabaseUrl}/storage/v1/object/public/photos/${msg.attachment_path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="block mb-2 rounded-lg overflow-hidden border border-amber-400/20 hover:border-amber-400/40 transition-all max-w-md"
+                    >
+                      <img
+                        src={`${supabaseUrl}/storage/v1/object/public/photos/${msg.attachment_path}`}
+                        alt="Imagen adjunta"
+                        class="w-full h-auto object-cover"
+                      />
+                    </a>
+                  )}
+                  {msg.content && (
+                    <div
+                      class={`message-content text-amber-100/90 text-sm leading-relaxed prose prose-invert prose-sm max-w-none prose-pre:bg-black/50 prose-pre:border prose-pre:border-amber-400/20 prose-code:text-amber-200 ${isOwn ? 'text-right' : ''}`}
+                      set:html={marked(msg.content)}
+                    />
+                  )}
                 </div>
               );
             })()}
@@ -259,24 +332,153 @@ function roleBadge(role: string | undefined) {
   </div>
 
   <!-- Input de mensaje -->
-  <div
-    class="bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-3 flex gap-3"
-  >
-    <input
-      type="text"
-      class="message-input flex-1 bg-black/50 border border-amber-400/20 focus:border-amber-400/50 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-400/30 outline-none transition-colors text-sm"
-      placeholder="Escribe un mensaje..."
-    />
-    <button
-      class="send-btn px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all duration-300 shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
+  <div class="space-y-2">
+    <!-- Botones de modo -->
+    <div class="flex gap-2 items-center">
+      <button
+        class="mode-btn mode-normal bg-amber-400/20 border border-amber-400/40 text-amber-300 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-all"
+        data-mode="normal"
+      >
+        💬 Normal
+      </button>
+      <button
+        class="mode-btn bg-black/40 border border-amber-400/10 text-amber-400/50 hover:text-amber-400/80 hover:border-amber-400/30 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-all"
+        data-mode="code"
+      >
+        💻 Código
+      </button>
+      <button
+        class="attach-photo-btn ml-auto bg-black/40 border border-amber-400/10 text-amber-400/50 hover:text-amber-400/80 hover:border-amber-400/30 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-all"
+      >
+        📎 Foto
+      </button>
+    </div>
+    <div
+      class="bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-3 flex gap-3"
     >
-      Enviar
-    </button>
+      <textarea
+        class="message-input flex-1 bg-black/50 border border-amber-400/20 focus:border-amber-400/50 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-400/30 outline-none transition-colors text-sm resize-none"
+        placeholder="Escribe un mensaje... (soporta Markdown)"
+        rows="1"
+      ></textarea>
+      <button
+        class="send-btn px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all duration-300 shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)] self-end"
+      >
+        Enviar
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de subida de foto -->
+  <div
+    class="chat-photo-modal hidden fixed inset-0 z-50 items-center justify-center p-4"
+  >
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm modal-overlay"></div>
+    <div
+      class="relative z-10 bg-[#0a0011] border border-amber-400/40 rounded-2xl shadow-[0_0_60px_rgba(251,191,36,0.2)] w-full max-w-md p-6"
+    >
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-amber-300 font-black uppercase tracking-widest text-sm">
+          Adjuntar foto
+        </h2>
+        <button class="close-modal-btn text-amber-100/40 hover:text-amber-200 transition-colors text-xl leading-none">
+          ✕
+        </button>
+      </div>
+
+      <!-- Pestañas -->
+      <div class="flex gap-1 mb-4 bg-black/30 p-1 rounded-lg">
+        <button
+          class="tab-btn tab-file bg-amber-400/20 text-amber-300 border border-amber-400/40 flex-1 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all"
+          data-tab="file"
+        >
+          📁 Archivo
+        </button>
+        <button
+          class="tab-btn tab-camera text-amber-100/40 hover:text-amber-200 flex-1 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all"
+          data-tab="camera"
+        >
+          📹 Cámara
+        </button>
+      </div>
+
+      <!-- Panel: Archivo -->
+      <div class="panel-file">
+        <label
+          class="photo-drop-zone flex flex-col items-center justify-center gap-3 w-full h-40 border-2 border-dashed border-amber-400/30 hover:border-amber-400/60 rounded-xl cursor-pointer transition-all duration-300 bg-black/30 hover:bg-black/50 group"
+        >
+          <span class="text-4xl">📷</span>
+          <span class="text-amber-200/60 text-sm font-medium group-hover:text-amber-200 transition-colors">
+            Click o arrastra una imagen aquí
+          </span>
+          <span class="text-amber-100/30 text-xs">JPG, PNG, WebP, GIF · máx. 8 MB</span>
+          <input
+            type="file"
+            class="photo-file-input hidden"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+          />
+        </label>
+        <img
+          class="photo-preview hidden w-full max-h-48 object-cover rounded-xl border border-amber-400/20 mt-3"
+          alt="Preview"
+        />
+      </div>
+
+      <!-- Panel: Cámara -->
+      <div class="panel-camera hidden space-y-3">
+        <div class="relative rounded-xl overflow-hidden bg-black border border-amber-400/20">
+          <video
+            class="camera-video w-full max-h-56 object-cover"
+            autoplay
+            playsinline
+            muted
+          ></video>
+          <div class="camera-placeholder absolute inset-0 flex flex-col items-center justify-center gap-2 text-amber-100/30">
+            <span class="text-4xl">📹</span>
+            <span class="text-xs">La cámara aparecerá aquí</span>
+          </div>
+        </div>
+        <img
+          class="capture-preview hidden w-full max-h-48 object-cover rounded-xl border border-amber-400/30"
+          alt="Captura"
+        />
+        <canvas class="capture-canvas hidden"></canvas>
+        <div class="flex gap-2">
+          <button
+            class="start-camera-btn flex-1 py-2.5 bg-black/50 hover:bg-black/70 border border-amber-400/30 hover:border-amber-400/60 text-amber-300 font-bold uppercase text-xs tracking-widest rounded-lg transition-all"
+            type="button"
+          >
+            Activar cámara
+          </button>
+          <button
+            class="capture-btn hidden flex-1 py-2.5 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 text-amber-300 font-bold uppercase text-xs tracking-widest rounded-lg transition-all"
+            type="button"
+          >
+            📸 Capturar
+          </button>
+          <button
+            class="retake-btn hidden px-4 py-2.5 bg-black/40 hover:bg-black/60 border border-amber-400/20 text-amber-200/50 hover:text-amber-200 font-bold uppercase text-xs tracking-widest rounded-lg transition-all"
+            type="button"
+          >
+            Repetir
+          </button>
+        </div>
+      </div>
+
+      <button
+        class="upload-photo-btn w-full mt-4 py-3 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+      >
+        Adjuntar foto
+      </button>
+    </div>
   </div>
 </div>
 )}
 
 <script define:vars={{ userId, userName, userRole, channel, supabaseUrl: import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL, supabaseKey: import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_KEY }}>
+  // Importar highlight.js
+  const hljs = window.hljs;
+
   // Scope to this specific chat instance using the channel id
   const chatBox = document.getElementById(`chat-box-${channel}`);
   const replyIndicator = document.getElementById(`reply-indicator-${channel}`);
@@ -288,8 +490,36 @@ function roleBadge(role: string | undefined) {
   const replyToPreview = replyIndicator?.querySelector(".reply-to-preview");
   const cancelReplyBtn = replyIndicator?.querySelector(".cancel-reply-btn");
 
+  // Modal de foto
+  const modal = chatRoot?.querySelector(".chat-photo-modal");
+  const closeModalBtn = modal?.querySelector(".close-modal-btn");
+  const modalOverlay = modal?.querySelector(".modal-overlay");
+  const attachPhotoBtn = chatRoot?.querySelector(".attach-photo-btn");
+  const tabBtns = modal?.querySelectorAll(".tab-btn");
+  const panelFile = modal?.querySelector(".panel-file");
+  const panelCamera = modal?.querySelector(".panel-camera");
+  const photoInput = modal?.querySelector(".photo-file-input");
+  const photoPreview = modal?.querySelector(".photo-preview");
+  const dropZone = modal?.querySelector(".photo-drop-zone");
+  const video = modal?.querySelector(".camera-video");
+  const canvas = modal?.querySelector(".capture-canvas");
+  const capturePreview = modal?.querySelector(".capture-preview");
+  const cameraPlaceholder = modal?.querySelector(".camera-placeholder");
+  const startCameraBtn = modal?.querySelector(".start-camera-btn");
+  const captureBtn = modal?.querySelector(".capture-btn");
+  const retakeBtn = modal?.querySelector(".retake-btn");
+  const uploadPhotoBtn = modal?.querySelector(".upload-photo-btn");
+
+  // Modo de entrada
+  const modeBtns = chatRoot?.querySelectorAll(".mode-btn");
+  let currentMode = "normal"; // "normal" | "code"
+  let capturedBlob = null;
+  let stream = null;
+  let activeTab = "file";
+
   let replyTo = null;
   let replyToText = null;
+  let attachmentPath = null; // Para almacenar la ruta de la foto subida
   const isModerator = userRole?.toLowerCase() === "admin" || userRole?.toLowerCase() === "mentor";
 
   function isDeletedContent(content) {
@@ -377,7 +607,22 @@ function roleBadge(role: string | undefined) {
     if (isDeletedContent(msg.content)) {
       html += `<div class="${contentClass} text-amber-400/35 text-sm italic leading-relaxed select-none">🗑️ Mensaje borrado por ${deletedByName(msg.content)}</div>`;
     } else {
-      html += `<div class="${contentClass} text-amber-100/90 text-sm leading-relaxed">${msg.content}</div>`;
+      // Contenedor con alineación
+      const containerClass = isOwn ? "mr-10 flex flex-col items-end" : "ml-10";
+      html += `<div class="${containerClass}">`;
+      
+      // Attachment
+      if (msg.attachment_path) {
+        const photoUrl = `${supabaseUrl}/storage/v1/object/public/photos/${msg.attachment_path}`;
+        html += `<a href="${photoUrl}" target="_blank" rel="noopener noreferrer" class="block mb-2 rounded-lg overflow-hidden border border-amber-400/20 hover:border-amber-400/40 transition-all max-w-md"><img src="${photoUrl}" alt="Imagen adjunta" class="w-full h-auto object-cover" /></a>`;
+      }
+      // Content con markdown
+      if (msg.content) {
+        // Parsear markdown en cliente usando marked (necesitamos cargarlo globalmente)
+        const parsedContent = window.marked?.parse ? window.marked.parse(msg.content) : msg.content.replace(/\n/g, '<br>');
+        html += `<div class="message-content text-amber-100/90 text-sm leading-relaxed prose prose-invert prose-sm max-w-none prose-pre:bg-black/50 prose-pre:border prose-pre:border-amber-400/20 prose-code:text-amber-200 ${isOwn ? 'text-right' : ''}">${parsedContent}</div>`;
+      }
+      html += `</div>`;
       html += `<div class="${actionsClass} mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">`;
       html += `<button class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-reply-to="${msg.id}">Responder</button>`;
       if (isOwn) {
@@ -391,6 +636,42 @@ function roleBadge(role: string | undefined) {
 
     messageDiv.innerHTML = html;
     chatBox?.appendChild(messageDiv);
+    
+    // Aplicar syntax highlighting a los bloques de código
+    if (hljs) {
+      messageDiv.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+    }
+
+    // Añadir botones de copiar a los bloques de código
+    messageDiv.querySelectorAll('pre').forEach((pre) => {
+      const code = pre.querySelector('code');
+      if (code) {
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-code-btn';
+        copyBtn.textContent = 'Copiar';
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(code.textContent || '');
+            copyBtn.textContent = '¡Copiado!';
+            copyBtn.classList.add('copied');
+            setTimeout(() => {
+              copyBtn.textContent = 'Copiar';
+              copyBtn.classList.remove('copied');
+            }, 2000);
+          } catch {
+            copyBtn.textContent = 'Error';
+            setTimeout(() => {
+              copyBtn.textContent = 'Copiar';
+            }, 2000);
+          }
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(copyBtn);
+      }
+    });
+    
     chatBox?.scrollTo({ top: chatBox.scrollHeight, behavior: "smooth" });
 
     // Attach event listeners to new buttons
@@ -406,10 +687,20 @@ function roleBadge(role: string | undefined) {
   }
 
   async function sendMessage() {
-    const content = messageInput?.value?.trim();
-    if (!content) return;
+    let content = messageInput?.value?.trim();
+    if (!content && !attachmentPath) return;
 
-    const body = { content, channel, reply_to: replyTo };
+    // Si está en modo código, envolver en triple backticks
+    if (currentMode === "code" && content) {
+      content = "```\n" + content + "\n```";
+    }
+
+    const body = { 
+      content: content || "", 
+      channel, 
+      reply_to: replyTo,
+      attachment_path: attachmentPath 
+    };
 
     try {
       const response = await fetch("/api/chat/send", {
@@ -419,8 +710,12 @@ function roleBadge(role: string | undefined) {
       });
 
       if (response.ok) {
-        if (messageInput) messageInput.value = "";
+        if (messageInput) {
+          messageInput.value = "";
+          messageInput.style.height = "auto";
+        }
         clearReply();
+        attachmentPath = null;
       } else {
         const errText = await response.text();
         alert("Error al enviar: " + errText);
@@ -520,14 +815,255 @@ function roleBadge(role: string | undefined) {
   sendBtn?.addEventListener("click", sendMessage);
 
   messageInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   });
 
+  // Auto-resize textarea
+  messageInput?.addEventListener("input", () => {
+    messageInput.style.height = "auto";
+    messageInput.style.height = messageInput.scrollHeight + "px";
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // Modal de foto
+  // ══════════════════════════════════════════════════════════════
+  function openPhotoModal() {
+    modal?.classList.remove("hidden");
+    modal?.classList.add("flex");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closePhotoModal() {
+    modal?.classList.remove("flex");
+    modal?.classList.add("hidden");
+    document.body.style.overflow = "";
+    stopCamera();
+    capturedBlob = null;
+    if (photoInput) photoInput.value = "";
+    photoPreview?.classList.add("hidden");
+    capturePreview?.classList.add("hidden");
+    if (captureBtn) captureBtn.classList.remove("hidden");
+    if (retakeBtn) retakeBtn.classList.add("hidden");
+    if (video) video.classList.remove("hidden");
+    cameraPlaceholder?.classList.remove("hidden");
+  }
+
+  attachPhotoBtn?.addEventListener("click", openPhotoModal);
+  closeModalBtn?.addEventListener("click", closePhotoModal);
+  modalOverlay?.addEventListener("click", closePhotoModal);
+
+  // Tabs
+  function switchPhotoTab(tab) {
+    activeTab = tab;
+    tabBtns?.forEach((btn) => {
+      if (btn.dataset.tab === tab) {
+        btn.className = "tab-btn flex-1 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all bg-amber-400/20 text-amber-300 border border-amber-400/40";
+      } else {
+        btn.className = "tab-btn flex-1 py-1.5 text-xs font-bold uppercase tracking-widest rounded-md transition-all text-amber-100/40 hover:text-amber-200";
+      }
+    });
+    if (tab === "file") {
+      panelFile?.classList.remove("hidden");
+      panelCamera?.classList.add("hidden");
+      stopCamera();
+    } else {
+      panelFile?.classList.add("hidden");
+      panelCamera?.classList.remove("hidden");
+    }
+  }
+
+  tabBtns?.forEach((btn) => {
+    btn.addEventListener("click", () => switchPhotoTab(btn.dataset.tab));
+  });
+
+  // File input
+  photoInput?.addEventListener("change", () => {
+    const file = photoInput.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (photoPreview) photoPreview.src = e.target.result;
+        photoPreview?.classList.remove("hidden");
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Drag & drop
+  dropZone?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("border-amber-400/60");
+  });
+  dropZone?.addEventListener("dragleave", () => {
+    dropZone.classList.remove("border-amber-400/60");
+  });
+  dropZone?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("border-amber-400/60");
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      if (photoInput) photoInput.files = dataTransfer.files;
+      photoInput?.dispatchEvent(new Event("change"));
+    }
+  });
+
+  // Camera
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      if (video) video.srcObject = stream;
+      cameraPlaceholder?.classList.add("hidden");
+      startCameraBtn?.classList.add("hidden");
+      captureBtn?.classList.remove("hidden");
+    } catch {
+      alert("No se pudo acceder a la cámara. Comprueba los permisos del navegador.");
+    }
+  }
+
+  function stopCamera() {
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = null;
+    if (video) video.srcObject = null;
+    startCameraBtn?.classList.remove("hidden");
+    captureBtn?.classList.add("hidden");
+  }
+
+  function captureFrame() {
+    if (!canvas || !video) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx?.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        capturedBlob = blob;
+        if (capturePreview) capturePreview.src = canvas.toDataURL("image/jpeg");
+        capturePreview?.classList.remove("hidden");
+        video?.classList.add("hidden");
+        captureBtn?.classList.add("hidden");
+        retakeBtn?.classList.remove("hidden");
+        stopCamera();
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
+
+  startCameraBtn?.addEventListener("click", startCamera);
+  captureBtn?.addEventListener("click", captureFrame);
+  retakeBtn?.addEventListener("click", () => {
+    capturedBlob = null;
+    capturePreview?.classList.add("hidden");
+    video?.classList.remove("hidden");
+    retakeBtn?.classList.add("hidden");
+    startCamera();
+  });
+
+  // Upload
+  uploadPhotoBtn?.addEventListener("click", async () => {
+    let fileToUpload = null;
+    if (activeTab === "file") {
+      fileToUpload = photoInput?.files?.[0];
+      if (!fileToUpload) {
+        alert("Primero selecciona una imagen.");
+        return;
+      }
+    } else {
+      if (!capturedBlob) {
+        alert("Primero captura una foto con la cámara.");
+        return;
+      }
+      fileToUpload = new File([capturedBlob], `captura-${Date.now()}.jpg`, { type: "image/jpeg" });
+    }
+
+    const fd = new FormData();
+    fd.append("photo", fileToUpload);
+
+    try {
+      const res = await fetch("/api/chat/upload-photo", {
+        method: "POST",
+        body: fd,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        attachmentPath = data.path;
+        closePhotoModal();
+        alert("Foto adjuntada. Escribe un mensaje opcional y envía.");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Error al subir la foto.");
+      }
+    } catch {
+      alert("Error de conexión.");
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // Modo de entrada (normal / código)
+  // ══════════════════════════════════════════════════════════════
+  modeBtns?.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.mode;
+      currentMode = mode;
+      modeBtns.forEach((b) => {
+        if (b.dataset.mode === mode) {
+          b.className = "mode-btn bg-amber-400/20 border border-amber-400/40 text-amber-300 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-all";
+        } else {
+          b.className = "mode-btn bg-black/40 border border-amber-400/10 text-amber-400/50 hover:text-amber-400/80 hover:border-amber-400/30 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide transition-all";
+        }
+      });
+      if (mode === "code") {
+        messageInput?.setAttribute("placeholder", "Escribe código...");
+      } else {
+        messageInput?.setAttribute("placeholder", "Escribe un mensaje... (soporta Markdown)");
+      }
+    });
+  });
+
   // Scroll to bottom on load
   if (chatBox) chatBox.scrollTo(0, chatBox.scrollHeight);
+
+  // Añadir botones de copiar a bloques de código existentes
+  chatBox?.querySelectorAll('pre').forEach((pre) => {
+    const code = pre.querySelector('code');
+    if (code && !pre.querySelector('.copy-code-btn')) {
+      // Aplicar highlight si existe
+      if (hljs && !code.classList.contains('hljs')) {
+        hljs.highlightElement(code);
+      }
+      
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-code-btn';
+      copyBtn.textContent = 'Copiar';
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(code.textContent || '');
+          copyBtn.textContent = '¡Copiado!';
+          copyBtn.classList.add('copied');
+          setTimeout(() => {
+            copyBtn.textContent = 'Copiar';
+            copyBtn.classList.remove('copied');
+          }, 2000);
+        } catch {
+          copyBtn.textContent = 'Error';
+          setTimeout(() => {
+            copyBtn.textContent = 'Copiar';
+          }, 2000);
+        }
+      });
+      pre.style.position = 'relative';
+      pre.appendChild(copyBtn);
+    }
+  });
 
   // Exponer la función addMessageToDOM globalmente para que el script de realtime pueda usarla
   window[`addMessageToDOM_${channel}`] = addMessageToDOM;
