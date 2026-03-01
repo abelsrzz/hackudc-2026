@@ -25,6 +25,27 @@ CREATE TABLE public.challenges (
   CONSTRAINT fk_sponsor FOREIGN KEY (sponsor_id) REFERENCES public.sponsors(id),
   CONSTRAINT challenges_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
 );
+CREATE TABLE public.messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  channel text NOT NULL DEFAULT 'general'::text,
+  content text NOT NULL,
+  reply_to uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  edited_at timestamp without time zone,
+  CONSTRAINT messages_pkey PRIMARY KEY (id),
+  CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT messages_reply_to_fkey FOREIGN KEY (reply_to) REFERENCES public.messages(id)
+);
+CREATE TABLE public.photos (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  user_id uuid NOT NULL,
+  storage_path text NOT NULL,
+  caption text,
+  CONSTRAINT photos_pkey PRIMARY KEY (id),
+  CONSTRAINT photos_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.profiles (
   id uuid NOT NULL,
   name text,
