@@ -224,6 +224,27 @@ if (userProjectId) {
                       </div>
                     </div>
 
+                    {/* Botón para abandonar proyecto */}
+                    <div class="mb-5 pb-5 border-b border-amber-400/15">
+                      <form
+                        action="/api/projects/leave"
+                        method="post"
+                        onsubmit="return confirm('¿Seguro que quieres abandonar este proyecto?')"
+                      >
+                        <input
+                          type="hidden"
+                          name="project_id"
+                          value={(userProject as any).id}
+                        />
+                        <button
+                          type="submit"
+                          class="w-full px-4 py-2.5 bg-red-900/20 hover:bg-red-900/40 border border-red-400/30 hover:border-red-400/60 text-red-300 rounded-lg transition-all duration-300 text-xs font-bold uppercase tracking-widest"
+                        >
+                          Abandonar Proyecto
+                        </button>
+                      </form>
+                    </div>
+
                     {/* Sede */}
                     <div class="mb-5 pt-5 border-t border-amber-400/15">
                       <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">

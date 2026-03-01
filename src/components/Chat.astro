@@ -172,10 +172,7 @@ function roleBadge(role: string | undefined) {
                 )}
               </div>
               <span class="text-amber-400/40 text-xs shrink-0 mt-0.5">
-                {new Date(msg.created_at).toLocaleTimeString("es-ES", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {new Date(msg.created_at).toLocaleString()}
               </span>
             </div>
             {msg.reply_to && (
@@ -306,10 +303,7 @@ function roleBadge(role: string | undefined) {
     const name = msg.profiles?.name || userName;
     const initial = name.charAt(0).toUpperCase();
     const time = msg.created_at
-      ? new Date(msg.created_at).toLocaleTimeString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
+      ? new Date(msg.created_at).toLocaleString()
       : "";
 
     const role = msg.profiles?.role?.toLowerCase();
