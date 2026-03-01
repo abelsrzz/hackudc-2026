@@ -3,6 +3,14 @@ import Layout from "../../layouts/Layout.astro";
 import Footer from "../../components/Footer.astro";
 import patternSvg from "../../assets/pattern.svg";
 import { supabaseAdmin } from "../../lib/supabase";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faGithub,
+  faLinkedin,
+  faTwitter,
+  faInstagram,
+} from "@fortawesome/free-brands-svg-icons";
+import { faGlobe } from "@fortawesome/free-solid-svg-icons";
 
 // Auth — must be logged in to view profiles
 const accessToken = Astro.cookies.get("sb-access-token");
@@ -188,7 +196,7 @@ const project = (membership?.projects as any) ?? null;
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🐙{" "}
+                  <FontAwesomeIcon icon={faGithub} className="h-4" />
                   {profile.github.replace(
                     /https?:\/\/(www\.)?github\.com\/?/,
                     "",
@@ -206,7 +214,7 @@ const project = (membership?.projects as any) ?? null;
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  💼{" "}
+                  <FontAwesomeIcon icon={faLinkedin} className="h-4" />
                   {profile.linkedin.replace(
                     /https?:\/\/(www\.)?linkedin\.com\/in\/?/,
                     "",
@@ -224,7 +232,7 @@ const project = (membership?.projects as any) ?? null;
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🐦{" "}
+                  <FontAwesomeIcon icon={faTwitter} className="h-4" />
                   {profile.twitter
                     .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
                     .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
@@ -241,7 +249,7 @@ const project = (membership?.projects as any) ?? null;
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  📸{" "}
+                  <FontAwesomeIcon icon={faInstagram} className="h-4" />
                   {profile.instagram.replace(
                     /https?:\/\/(www\.)?instagram\.com\//,
                     "",
@@ -259,7 +267,8 @@ const project = (membership?.projects as any) ?? null;
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🌐 {profile.website.replace(/https?:\/\/(www\.)?/, "")}
+                  <FontAwesomeIcon icon={faGlobe} className="h-4" />
+                  {profile.website.replace(/https?:\/\/(www\.)?/, "")}
                 </a>
               )}
             </div>

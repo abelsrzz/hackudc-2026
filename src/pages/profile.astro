@@ -3,6 +3,14 @@ import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faGithub,
+  faLinkedin,
+  faTwitter,
+  faInstagram,
+} from "@fortawesome/free-brands-svg-icons";
+import { faGlobe } from "@fortawesome/free-solid-svg-icons";
 
 const accessToken = Astro.cookies.get("sb-access-token");
 if (!accessToken) return Astro.redirect("/signin");
@@ -185,7 +193,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🐙{" "}
+                  <FontAwesomeIcon icon={faGithub} className="h-4" />
                   {profile.github.replace(
                     /https?:\/\/(www\.)?github\.com\/?/,
                     "",
@@ -203,7 +211,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  💼{" "}
+                  <FontAwesomeIcon icon={faLinkedin} className="h-4" />
                   {profile.linkedin.replace(
                     /https?:\/\/(www\.)?linkedin\.com\/in\/?/,
                     "",
@@ -221,7 +229,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🐦{" "}
+                  <FontAwesomeIcon icon={faTwitter} className="h-4" />
                   {profile.twitter
                     .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
                     .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
@@ -238,7 +246,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  📸{" "}
+                  <FontAwesomeIcon icon={faInstagram} className="h-4" />
                   {profile.instagram.replace(
                     /https?:\/\/(www\.)?instagram\.com\//,
                     "",
@@ -256,7 +264,8 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   rel="noopener noreferrer"
                   class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
                 >
-                  🌐 {profile.website.replace(/https?:\/\/(www\.)?/, "")}
+                  <FontAwesomeIcon icon={faGlobe} className="h-4" />
+                  {profile.website.replace(/https?:\/\/(www\.)?/, "")}
                 </a>
               )}
             </div>
@@ -332,7 +341,9 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
               </p>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="flex items-center gap-2">
-                  <span class="text-lg w-6 text-center shrink-0">🐙</span>
+                  <span class="w-6 text-center shrink-0 text-amber-400/60">
+                    <FontAwesomeIcon icon={faGithub} className="h-5" />
+                  </span>
                   <div class="flex-1">
                     <label class="block text-amber-200/35 text-xs mb-1"
                       >GitHub</label
@@ -348,7 +359,9 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <span class="text-lg w-6 text-center shrink-0">💼</span>
+                  <span class="w-6 text-center shrink-0 text-amber-400/60">
+                    <FontAwesomeIcon icon={faLinkedin} className="h-5" />
+                  </span>
                   <div class="flex-1">
                     <label class="block text-amber-200/35 text-xs mb-1"
                       >LinkedIn</label
@@ -364,7 +377,9 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <span class="text-lg w-6 text-center shrink-0">🐦</span>
+                  <span class="w-6 text-center shrink-0 text-amber-400/60">
+                    <FontAwesomeIcon icon={faTwitter} className="h-5" />
+                  </span>
                   <div class="flex-1">
                     <label class="block text-amber-200/35 text-xs mb-1"
                       >Twitter / X</label
@@ -380,7 +395,9 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <span class="text-lg w-6 text-center shrink-0">📸</span>
+                  <span class="w-6 text-center shrink-0 text-amber-400/60">
+                    <FontAwesomeIcon icon={faInstagram} className="h-5" />
+                  </span>
                   <div class="flex-1">
                     <label class="block text-amber-200/35 text-xs mb-1"
                       >Instagram</label
@@ -396,7 +413,9 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <span class="text-lg w-6 text-center shrink-0">🌐</span>
+                  <span class="w-6 text-center shrink-0 text-amber-400/60">
+                    <FontAwesomeIcon icon={faGlobe} className="h-5" />
+                  </span>
                   <div class="flex-1">
                     <label class="block text-amber-200/35 text-xs mb-1"
                       >Web personal</label
