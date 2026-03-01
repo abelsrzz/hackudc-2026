@@ -33,8 +33,8 @@ const { data: profile } = await supabase
   .eq("id", user?.id)
   .single();
 
-const isAdmin = profile?.role === "admin";
-const isMentor = profile?.role === "mentor";
+const isAdmin = profile?.role?.toLowerCase() === "admin";
+const isMentor = profile?.role?.toLowerCase() === "mentor";
 ---
 
 <Layout title="Dashboard — HackUDC">
