@@ -89,7 +89,7 @@ for (const v of challengeUpvotesRaw ?? []) {
 
       <!-- Botón New Challenge para Sponsors -->
       {
-        profile?.role === "Sponsor" && (
+        !!profile?.sponsor_id && (
           <div class="w-full max-w-6xl mb-6 flex justify-end">
             <a
               href="/create-challenge"

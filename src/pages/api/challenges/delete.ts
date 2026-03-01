@@ -17,14 +17,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     .eq("id", user.id)
     .single();
 
-  if (!profile || (profile.role !== "Admin" && profile.role !== "Sponsor")) {
+  const isAdmin = profile?.role?.toLowerCase() === "admin";
+  const isSponsor = !!profile?.sponsor_id;
+
+  if (!profile || (!isAdmin && !isSponsor)) {
     return new Response("No autorizado", { status: 403 });
   }
 
   const { challengeId } = await request.json();
 
-  // Si es Sponsor, verificar que el challenge le pertenece
-  if (profile.role === "Sponsor") {
+  // Si es Sponsor (no admin), verificar que el challenge le pertenece
+  if (isSponsor && !isAdmin) {
     const { data: challenge } = await supabaseAdmin
       .from("challenges")
       .select("sponsor_id")

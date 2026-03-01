@@ -17,7 +17,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .eq("id", user.id)
     .single();
 
-  if (!profile || (profile.role !== "Sponsor" && profile.role !== "Admin")) {
+  const isAdmin = profile?.role?.toLowerCase() === "admin";
+  const isSponsor = !!profile?.sponsor_id;
+
+  if (!profile || (!isSponsor && !isAdmin)) {
     return new Response("No autorizado", { status: 403 });
   }
 
@@ -30,7 +33,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   let sponsor_id = formData.get("sponsor_id")?.toString();
 
   // Sponsors solo pueden crear para su propia empresa
-  if (profile.role === "Sponsor") {
+  if (isSponsor && !isAdmin) {
     sponsor_id = profile.sponsor_id;
   }
 

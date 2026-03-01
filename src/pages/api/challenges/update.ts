@@ -17,7 +17,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "Sponsor") {
+  const isAdmin = profile?.role?.toLowerCase() === "admin";
+  const isSponsor = !!profile?.sponsor_id;
+
+  if (!profile || (!isAdmin && !isSponsor)) {
     return new Response("No autorizado", { status: 403 });
   }
 
@@ -33,17 +36,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return new Response("Challenge ID requerido", { status: 400 });
   }
 
-  // Verificar que el challenge pertenece al sponsor del usuario
+  // Verificar que el challenge pertenece al sponsor del usuario (o es admin)
   const { data: existingChallenge } = await supabaseAdmin
     .from("challenges")
     .select("sponsor_id")
     .eq("id", challenge_id)
     .single();
 
-  if (
-    !existingChallenge ||
-    existingChallenge.sponsor_id !== profile.sponsor_id
-  ) {
+  if (!existingChallenge) {
+    return new Response("Challenge no encontrado", { status: 404 });
+  }
+
+  if (!isAdmin && existingChallenge.sponsor_id !== profile.sponsor_id) {
     return new Response("No autorizado para editar este challenge", {
       status: 403,
     });

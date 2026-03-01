@@ -22,11 +22,7 @@ const { data: profile, error: profileError } = await supabaseAdmin
   .eq("id", user.id)
   .single();
 
-if (profileError || !profile || profile.role !== "Sponsor") {
-  return redirect("/challenges");
-}
-
-if (!profile.sponsor_id) {
+if (profileError || !profile || !profile.sponsor_id) {
   return redirect("/challenges");
 }
 

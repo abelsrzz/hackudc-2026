@@ -22,7 +22,14 @@ const { data: profile, error: profileError } = await supabaseAdmin
   .eq("id", user.id)
   .single();
 
-if (profileError || !profile || profile.role !== "Sponsor") {
+if (profileError || !profile) {
+  return redirect("/challenges");
+}
+
+const isAdmin = profile.role?.toLowerCase() === "admin";
+const isSponsor = !!profile.sponsor_id;
+
+if (!isAdmin && !isSponsor) {
   return redirect("/challenges");
 }
 
@@ -57,8 +64,8 @@ const supabaseUrl = import.meta.env.SUPABASE_URL;
 
 if (error || !challenge) return redirect("/challenges");
 
-// Verificar que el usuario es el sponsor dueño
-if (challenge.sponsor_id !== profile.sponsor_id) {
+// Verificar que el usuario es el sponsor dueño o admin
+if (!isAdmin && challenge.sponsor_id !== profile.sponsor_id) {
   return redirect("/challenges");
 }
 
