@@ -55,7 +55,8 @@ if (accessToken) {
         user_id,
         reply_to,
         profiles (
-          name
+          name,
+          role
         )
       `,
       )
@@ -64,6 +65,48 @@ if (accessToken) {
 
     messages = initialMessages || [];
   }
+}
+
+function roleStyles(role: string | undefined, isOwn: boolean) {
+  const r = role?.toLowerCase();
+  if (r === "mentor") return {
+    msg: "bg-blue-900/20 border-blue-400/35 hover:border-blue-400/60",
+    avatar: "bg-blue-400/25 border-blue-400/60 text-blue-200",
+    name: "text-blue-300",
+    ring: "hover:ring-blue-400/50",
+  };
+  if (r === "admin") return {
+    msg: "bg-red-900/20 border-red-400/35 hover:border-red-400/60",
+    avatar: "bg-red-400/25 border-red-400/60 text-red-200",
+    name: "text-red-300",
+    ring: "hover:ring-red-400/50",
+  };
+  if (r === "sponsor") return {
+    msg: "bg-green-900/20 border-green-400/35 hover:border-green-400/60",
+    avatar: "bg-green-400/25 border-green-400/60 text-green-200",
+    name: "text-green-300",
+    ring: "hover:ring-green-400/50",
+  };
+  if (isOwn) return {
+    msg: "bg-amber-900/25 border-amber-500/30 hover:border-amber-400/60",
+    avatar: "bg-amber-400/40 border-amber-300/70 text-amber-100",
+    name: "text-amber-300",
+    ring: "hover:ring-amber-400/50",
+  };
+  return {
+    msg: "bg-black/30 border-amber-400/10 hover:border-amber-400/30",
+    avatar: "bg-amber-400/20 border-amber-400/50 text-amber-300",
+    name: "text-amber-200",
+    ring: "hover:ring-amber-400/50",
+  };
+}
+
+function roleBadge(role: string | undefined) {
+  const r = role?.toLowerCase();
+  if (r === "mentor") return { label: "Mentor", cls: "bg-blue-400/15 border border-blue-400/40 text-blue-300" };
+  if (r === "admin") return { label: "Admin", cls: "bg-red-400/15 border border-red-400/40 text-red-300" };
+  if (r === "sponsor") return { label: "Sponsor", cls: "bg-green-400/15 border border-green-400/40 text-green-300" };
+  return null;
 }
 ---
 
@@ -89,13 +132,11 @@ if (accessToken) {
     {
       messages.map((msg: any) => {
         const isOwn = msg.user_id === userId;
+        const styles = roleStyles(msg.profiles?.role, isOwn);
+        const badge = roleBadge(msg.profiles?.role);
         return (
           <div
-            class={`message group rounded-lg p-4 transition-all duration-200 ${
-              isOwn
-                ? "bg-amber-900/25 border border-amber-500/30 hover:border-amber-400/60"
-                : "bg-black/30 border border-amber-400/10 hover:border-amber-400/30"
-            }`}
+            class={`message group rounded-lg p-4 transition-all duration-200 border ${styles.msg}`}
             data-message-id={msg.id}
             data-user-id={msg.user_id}
           >
@@ -105,20 +146,23 @@ if (accessToken) {
               <div
                 class={`flex items-center gap-2 ${isOwn ? "flex-row-reverse" : ""}`}
               >
-                <span
-                  class={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                    isOwn
-                      ? "bg-amber-400/40 border border-amber-300/70 text-amber-100"
-                      : "bg-amber-400/20 border border-amber-400/50 text-amber-300"
-                  }`}
+                <a
+                  href={msg.user_id === userId ? "/profile" : `/user/${msg.user_id}`}
+                  class={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 border hover:ring-2 transition-all ${styles.avatar} ${styles.ring}`}
                 >
                   {msg.profiles?.name?.charAt(0).toUpperCase() || "?"}
-                </span>
-                <span
-                  class={`font-semibold text-sm ${isOwn ? "text-amber-300" : "text-amber-200"}`}
+                </a>
+                <a
+                  href={msg.user_id === userId ? "/profile" : `/user/${msg.user_id}`}
+                  class={`font-semibold text-sm hover:underline hover:underline-offset-2 transition-all ${styles.name}`}
                 >
                   {msg.profiles?.name || "Usuario"}
-                </span>
+                </a>
+                {badge && (
+                  <span class={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${badge.cls}`}>
+                    {badge.label}
+                  </span>
+                )}
                 {msg.edited_at && (
                   <span class="text-amber-400/50 text-xs italic">
                     (editado)
@@ -227,9 +271,6 @@ if (accessToken) {
 
     const isOwn = msg.user_id === userId;
     const messageDiv = document.createElement("div");
-    messageDiv.className = isOwn
-      ? "message group bg-amber-900/25 border border-amber-500/30 hover:border-amber-400/60 rounded-lg p-4 transition-all duration-200"
-      : "message group bg-black/30 border border-amber-400/10 hover:border-amber-400/30 rounded-lg p-4 transition-all duration-200";
     messageDiv.dataset.messageId = msg.id;
     messageDiv.dataset.userId = msg.user_id;
 
@@ -242,12 +283,42 @@ if (accessToken) {
         })
       : "";
 
-    const avatarClass = isOwn
-      ? "w-8 h-8 rounded-full bg-amber-400/40 border border-amber-300/70 flex items-center justify-center text-amber-100 text-xs font-black shrink-0"
-      : "w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0";
-    const nameClass = isOwn
-      ? "text-amber-300 font-semibold text-sm"
-      : "text-amber-200 font-semibold text-sm";
+    const role = msg.profiles?.role?.toLowerCase();
+    let msgBg, avatarBase, nameColor, ringColor, badgeHTML = "";
+    if (role === "mentor") {
+      msgBg = "bg-blue-900/20 border-blue-400/35 hover:border-blue-400/60";
+      avatarBase = "bg-blue-400/25 border-blue-400/60 text-blue-200";
+      nameColor = "text-blue-300";
+      ringColor = "hover:ring-blue-400/50";
+      badgeHTML = `<span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest bg-blue-400/15 border border-blue-400/40 text-blue-300">Mentor</span>`;
+    } else if (role === "admin") {
+      msgBg = "bg-red-900/20 border-red-400/35 hover:border-red-400/60";
+      avatarBase = "bg-red-400/25 border-red-400/60 text-red-200";
+      nameColor = "text-red-300";
+      ringColor = "hover:ring-red-400/50";
+      badgeHTML = `<span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest bg-red-400/15 border border-red-400/40 text-red-300">Admin</span>`;
+    } else if (role === "sponsor") {
+      msgBg = "bg-green-900/20 border-green-400/35 hover:border-green-400/60";
+      avatarBase = "bg-green-400/25 border-green-400/60 text-green-200";
+      nameColor = "text-green-300";
+      ringColor = "hover:ring-green-400/50";
+      badgeHTML = `<span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest bg-green-400/15 border border-green-400/40 text-green-300">Sponsor</span>`;
+    } else if (isOwn) {
+      msgBg = "bg-amber-900/25 border-amber-500/30 hover:border-amber-400/60";
+      avatarBase = "bg-amber-400/40 border-amber-300/70 text-amber-100";
+      nameColor = "text-amber-300";
+      ringColor = "hover:ring-amber-400/50";
+    } else {
+      msgBg = "bg-black/30 border-amber-400/10 hover:border-amber-400/30";
+      avatarBase = "bg-amber-400/20 border-amber-400/50 text-amber-300";
+      nameColor = "text-amber-200";
+      ringColor = "hover:ring-amber-400/50";
+    }
+
+    messageDiv.className = `message group border rounded-lg p-4 transition-all duration-200 ${msgBg}`;
+
+    const avatarClass = `w-8 h-8 rounded-full border flex items-center justify-center text-xs font-black shrink-0 hover:ring-2 transition-all ${avatarBase} ${ringColor}`;
+    const nameClass = `${nameColor} font-semibold text-sm hover:underline hover:underline-offset-2`;
     const headerDir = isOwn ? "flex-row-reverse" : "";
     const nameRowDir = isOwn ? "flex-row-reverse" : "";
     const contentClass = isOwn ? "mr-10 text-right" : "ml-10";
@@ -255,9 +326,10 @@ if (accessToken) {
 
     let html = `
       <div class="flex items-start gap-2 mb-2 ${headerDir}">
-        <div class="flex items-center gap-2 ${nameRowDir}">
-          <span class="${avatarClass}">${initial}</span>
-          <span class="${nameClass}">${name}</span>
+        <div class="flex items-center gap-2 flex-wrap ${nameRowDir}">
+          <a href="${msg.user_id === userId ? '/profile' : '/user/' + msg.user_id}" class="${avatarClass}">${initial}</a>
+          <a href="${msg.user_id === userId ? '/profile' : '/user/' + msg.user_id}" class="${nameClass}">${name}</a>
+          ${badgeHTML}
         </div>
         <span class="text-amber-400/40 text-xs shrink-0 mt-0.5" style="margin-${isOwn ? "right" : "left"}:auto">${time}</span>
       </div>
@@ -437,13 +509,13 @@ if (accessToken) {
           async (payload) => {
             const { data: profile } = await supabase
               .from("profiles")
-              .select("name")
+              .select("name, role")
               .eq("id", payload.new.user_id)
               .single();
 
             addMessageFunc({
               ...payload.new,
-              profiles: profile || { name: "Usuario" },
+              profiles: profile || { name: "Usuario", role: null },
             });
           }
         )

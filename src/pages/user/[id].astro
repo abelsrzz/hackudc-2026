@@ -1,0 +1,366 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import Footer from "../../components/Footer.astro";
+import patternSvg from "../../assets/pattern.svg";
+import { supabaseAdmin } from "../../lib/supabase";
+
+// Auth — must be logged in to view profiles
+const accessToken = Astro.cookies.get("sb-access-token");
+if (!accessToken) return Astro.redirect("/signin");
+
+const {
+  data: { user: viewer },
+  error: viewerError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (viewerError || !viewer) return Astro.redirect("/signin");
+
+const { id } = Astro.params;
+if (!id) return Astro.redirect("/dashboard");
+
+// Own profile → redirect to /profile
+if (id === viewer.id) return Astro.redirect("/profile");
+
+// Fetch the target profile
+const { data: profile, error: profileError } = await supabaseAdmin
+  .from("profiles")
+  .select(
+    "id, name, role, linkedin, github, twitter, website, institution, degree, year_of_study",
+  )
+  .eq("id", id)
+  .single();
+
+if (profileError || !profile) return Astro.redirect("/dashboard");
+
+// Fetch auth user info (for joined date)
+const {
+  data: { user: targetAuthUser },
+} = await supabaseAdmin.auth.admin.getUserById(id);
+
+const createdAt = targetAuthUser?.created_at
+  ? new Date(targetAuthUser.created_at).toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  : null;
+
+// Fetch their project
+const { data: membership } = await supabaseAdmin
+  .from("project_member")
+  .select(
+    `
+    project_id,
+    projects (
+      id,
+      name,
+      created_at,
+      sede,
+      challenges (
+        id,
+        title,
+        short_description,
+        reward
+      ),
+      project_member (
+        id,
+        member_id,
+        profiles (
+          id,
+          name
+        )
+      )
+    )
+  `,
+  )
+  .eq("member_id", id)
+  .maybeSingle();
+
+const project = (membership?.projects as any) ?? null;
+---
+
+<Layout title={`${profile.name ?? "Usuario"} — HackUDC`}>
+  <main class="relative min-h-screen overflow-hidden">
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-10 pb-16 px-4"
+    >
+      <!-- Cabecera -->
+      <div class="w-full max-w-3xl flex items-center justify-between mb-10">
+        <button
+          onclick="history.back()"
+          class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors cursor-pointer"
+        >
+          ← Volver
+        </button>
+        <a
+          href="/profile"
+          class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all font-bold uppercase text-xs tracking-wider"
+        >
+          <span
+            class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+          >
+            {viewer.email?.charAt(0).toUpperCase()}
+          </span>
+          Mi perfil
+        </a>
+      </div>
+
+      <!-- Avatar + datos -->
+      <div class="flex flex-col items-center mb-8">
+        <div
+          class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3"
+        >
+          {(profile.name ?? "?").charAt(0).toUpperCase()}
+        </div>
+        <h1
+          class="text-3xl sm:text-4xl font-black uppercase tracking-[0.15em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] text-center"
+        >
+          {profile.name ?? "Sin nombre"}
+        </h1>
+        <span
+          class="mt-2 px-3 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300 text-xs font-bold uppercase tracking-widest"
+        >
+          {profile.role ?? "Hacker"}
+        </span>
+
+        <!-- Estudios -->
+        {
+          (profile.institution || profile.degree) && (
+            <p class="text-amber-100/40 text-xs mt-2 text-center">
+              {[profile.degree, profile.year_of_study, profile.institution]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )
+        }
+
+        <!-- Redes sociales -->
+        {
+          (profile.github ||
+            profile.linkedin ||
+            profile.twitter ||
+            profile.website) && (
+            <div class="flex flex-wrap gap-2 mt-4 justify-center">
+              {profile.github && (
+                <a
+                  href={
+                    profile.github.startsWith("http")
+                      ? profile.github
+                      : `https://github.com/${profile.github}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🐙{" "}
+                  {profile.github.replace(
+                    /https?:\/\/(www\.)?github\.com\/?/,
+                    "",
+                  )}
+                </a>
+              )}
+              {profile.linkedin && (
+                <a
+                  href={
+                    profile.linkedin.startsWith("http")
+                      ? profile.linkedin
+                      : `https://linkedin.com/in/${profile.linkedin}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  💼{" "}
+                  {profile.linkedin.replace(
+                    /https?:\/\/(www\.)?linkedin\.com\/in\/?/,
+                    "",
+                  )}
+                </a>
+              )}
+              {profile.twitter && (
+                <a
+                  href={
+                    profile.twitter.startsWith("http")
+                      ? profile.twitter
+                      : `https://twitter.com/${profile.twitter}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🐦{" "}
+                  {profile.twitter
+                    .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
+                    .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
+                </a>
+              )}
+              {profile.website && (
+                <a
+                  href={
+                    profile.website.startsWith("http")
+                      ? profile.website
+                      : `https://${profile.website}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🌐 {profile.website.replace(/https?:\/\/(www\.)?/, "")}
+                </a>
+              )}
+            </div>
+          )
+        }
+
+        {
+          createdAt && (
+            <p class="text-amber-100/20 text-xs mt-3">
+              Miembro desde {createdAt}
+            </p>
+          )
+        }
+      </div>
+
+      <div class="w-full max-w-3xl space-y-6">
+        <!-- Proyecto -->
+        {
+          project ? (
+            <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/25 overflow-hidden">
+              <div class="px-6 py-4 border-b border-amber-400/15 flex items-center justify-between">
+                <h2 class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                  🚀 Proyecto
+                </h2>
+                <a
+                  href="/projects"
+                  class="text-amber-400/50 hover:text-amber-300 text-xs uppercase tracking-widest font-bold transition-colors"
+                >
+                  Ver todos →
+                </a>
+              </div>
+              <div class="px-6 py-5 space-y-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <h3 class="text-amber-200 font-black text-xl uppercase tracking-wide">
+                    {project.name}
+                  </h3>
+                  {project.sede && (
+                    <span class="px-3 py-1 bg-amber-400/10 border border-amber-400/25 rounded-full text-amber-300 text-xs font-bold uppercase tracking-widest">
+                      📍 {project.sede}
+                    </span>
+                  )}
+                </div>
+
+                {project.challenges ? (
+                  <div class="p-4 bg-black/40 rounded-lg border border-amber-400/15 space-y-1">
+                    <p class="text-amber-200/40 text-xs uppercase tracking-widest font-bold">
+                      Challenge
+                    </p>
+                    <p class="text-amber-200 font-bold text-sm">
+                      {(project.challenges as any).title}
+                    </p>
+                    {(project.challenges as any).short_description && (
+                      <p class="text-amber-100/50 text-xs leading-relaxed">
+                        {(project.challenges as any).short_description}
+                      </p>
+                    )}
+                    {(project.challenges as any).reward && (
+                      <p class="text-amber-300 text-xs font-bold mt-1">
+                        🏆 Premio: {(project.challenges as any).reward}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p class="text-amber-100/30 text-sm italic">
+                    Sin challenge vinculado.
+                  </p>
+                )}
+
+                <div>
+                  <p class="text-amber-200/40 text-xs uppercase tracking-widest font-bold mb-2">
+                    Equipo ({(project.project_member as any[])?.length ?? 0}{" "}
+                    miembro
+                    {(project.project_member as any[])?.length !== 1 ? "s" : ""}
+                    )
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    {(project.project_member as any[])?.map((m: any) => (
+                      <a
+                        href={
+                          m.member_id === viewer.id
+                            ? "/profile"
+                            : `/user/${m.member_id}`
+                        }
+                        class={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all hover:scale-[1.03] ${
+                          m.member_id === id
+                            ? "bg-amber-400/20 border-amber-400/50 text-amber-200"
+                            : "bg-black/40 border-amber-400/15 text-amber-100/50 hover:border-amber-400/30 hover:text-amber-200"
+                        }`}
+                      >
+                        <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                          {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
+                        </span>
+                        {m.profiles?.name ?? "Sin nombre"}
+                        {m.member_id === id && (
+                          <span class="text-amber-400/60 text-[10px]">
+                            (este)
+                          </span>
+                        )}
+                        {m.member_id === viewer.id && (
+                          <span class="text-amber-400/60 text-[10px]">
+                            (tú)
+                          </span>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                <p class="text-amber-100/25 text-xs">
+                  Creado el{" "}
+                  {new Date(project.created_at).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            </section>
+          ) : (
+            <div class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/10 px-6 py-8 text-center">
+              <p class="text-amber-100/25 text-sm italic">
+                Este usuario aún no tiene proyecto.
+              </p>
+            </div>
+          )
+        }
+
+        <!-- Sin info de redes ni estudios -->
+        {
+          !profile.github &&
+            !profile.linkedin &&
+            !profile.twitter &&
+            !profile.website &&
+            !profile.institution &&
+            !profile.degree && (
+              <div class="text-center py-4">
+                <p class="text-amber-100/20 text-xs italic">
+                  Este usuario no ha completado su perfil todavía.
+                </p>
+              </div>
+            )
+        }
+      </div>
+    </div>
+    <Footer />
+  </main>
+</Layout>

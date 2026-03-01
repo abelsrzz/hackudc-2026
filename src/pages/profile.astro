@@ -506,11 +506,16 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   </p>
                   <div class="flex flex-wrap gap-2">
                     {(project.project_member as any[])?.map((m: any) => (
-                      <div
-                        class={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${
+                      <a
+                        href={
+                          m.member_id === user.id
+                            ? "/profile"
+                            : `/user/${m.profiles?.id ?? m.member_id}`
+                        }
+                        class={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all hover:scale-[1.03] ${
                           m.member_id === user.id
                             ? "bg-amber-400/20 border-amber-400/50 text-amber-200"
-                            : "bg-black/40 border-amber-400/15 text-amber-100/50"
+                            : "bg-black/40 border-amber-400/15 text-amber-100/50 hover:border-amber-400/35 hover:text-amber-200"
                         }`}
                       >
                         <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
@@ -522,7 +527,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                             (tú)
                           </span>
                         )}
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </div>

@@ -333,17 +333,22 @@ for (const v of photoUpvotesRaw ?? []) {
                     <div class="px-4 py-3 flex items-start justify-between gap-2">
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 mb-1">
-                          <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
-                            {authorName.charAt(0).toUpperCase()}
-                          </span>
-                          <span class="text-amber-200/80 text-xs font-bold truncate">
-                            {authorName}
-                            {isOwner && (
-                              <span class="ml-1 text-amber-400/40 font-normal">
-                                (tú)
-                              </span>
-                            )}
-                          </span>
+                          <a
+                            href={isOwner ? "/profile" : `/user/${photo.user_id}`}
+                            class="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+                          >
+                            <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
+                              {authorName.charAt(0).toUpperCase()}
+                            </span>
+                            <span class="text-amber-200/80 text-xs font-bold truncate hover:underline">
+                              {authorName}
+                              {isOwner && (
+                                <span class="ml-1 text-amber-400/40 font-normal">
+                                  (tú)
+                                </span>
+                              )}
+                            </span>
+                          </a>
                         </div>
                         {photo.caption && (
                           <p class="text-amber-100/50 text-xs leading-snug break-words">

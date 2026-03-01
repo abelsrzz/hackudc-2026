@@ -197,7 +197,14 @@ if (userProjectId) {
                       </p>
                       <div class="flex flex-wrap gap-2">
                         {(userProject as any).project_member.map((m: any) => (
-                          <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-400/10 border border-amber-400/20 rounded-full">
+                          <a
+                            href={
+                              m.member_id === user.id
+                                ? "/profile"
+                                : `/user/${m.profiles?.id ?? m.member_id}`
+                            }
+                            class="flex items-center gap-2 px-3 py-1.5 bg-amber-400/10 border border-amber-400/20 rounded-full hover:border-amber-400/50 hover:bg-amber-400/20 transition-all"
+                          >
                             <span class="w-5 h-5 rounded-full bg-amber-400/30 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
                               {m.profiles?.name
                                 ? m.profiles.name.charAt(0).toUpperCase()
@@ -211,7 +218,7 @@ if (userProjectId) {
                                 </span>
                               )}
                             </span>
-                          </div>
+                          </a>
                         ))}
                       </div>
                     </div>
@@ -555,14 +562,21 @@ if (userProjectId) {
 
                       <div class="flex flex-wrap gap-1.5">
                         {project.project_member.map((m: any) => (
-                          <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/70 font-medium">
+                          <a
+                            href={
+                              m.member_id === user.id
+                                ? "/profile"
+                                : `/user/${m.profiles?.id ?? m.member_id}`
+                            }
+                            class="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/70 font-medium hover:border-amber-400/35 hover:text-amber-200 transition-all"
+                          >
                             <span class="w-4 h-4 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
                               {m.profiles?.name
                                 ? m.profiles.name.charAt(0).toUpperCase()
                                 : "?"}
                             </span>
                             {m.profiles?.name ?? "Hacker"}
-                          </span>
+                          </a>
                         ))}
                         {/* Slots vacíos */}
                         {Array.from({
