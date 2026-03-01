@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
+import AppHeader from "../components/AppHeader.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
 
@@ -18,7 +19,7 @@ if (userError || !user) return redirect("/signin");
 // Obtener perfil del usuario
 const { data: profile, error: profileError } = await supabaseAdmin
   .from("profiles")
-  .select("role, sponsor_id")
+  .select("role, sponsor_id, avatar_url, name")
   .eq("id", user.id)
   .single();
 
@@ -88,8 +89,14 @@ const sponsor = (challenge as any).sponsors;
     </div>
 
     <div
-      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+      class="relative z-20 flex flex-col items-center min-h-screen pt-4 pb-10 px-4"
     >
+      <AppHeader
+        avatarUrl={profile?.avatar_url}
+        userInitial={(profile?.name ?? user.email ?? "?")
+          .charAt(0)
+          .toUpperCase()}
+      />
       <!-- Botón de volver -->
       <div class="w-full max-w-4xl mb-6">
         <a

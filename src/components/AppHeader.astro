@@ -1,0 +1,39 @@
+---
+interface Props {
+  avatarUrl?: string | null;
+  userInitial?: string;
+}
+
+const { avatarUrl, userInitial = "?" } = Astro.props;
+---
+
+<header
+  class="flex items-center justify-between w-full max-w-7xl mx-auto pt-8 pb-6 px-4"
+>
+  <a
+    href="/dashboard"
+    class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
+  >
+    ← Inicio
+  </a>
+
+  <a
+    href="/profile"
+    class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
+  >
+    {
+      avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          class="w-6 h-6 rounded-full border border-amber-400 object-cover shrink-0"
+        />
+      ) : (
+        <span class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black">
+          {userInitial}
+        </span>
+      )
+    }
+    Mi Perfil
+  </a>
+</header>

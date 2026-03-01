@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
+import AppHeader from "../components/AppHeader.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
 import UpvoteButton from "../components/UpvoteButton.astro";
@@ -17,7 +18,7 @@ if (userError || !user) return Astro.redirect("/signin");
 // Obtener perfil del usuario
 const { data: profile } = await supabaseAdmin
   .from("profiles")
-  .select("role, sponsor_id")
+  .select("role, sponsor_id, avatar_url, name")
   .eq("id", user.id)
   .single();
 
@@ -79,8 +80,14 @@ for (const v of challengeUpvotesRaw ?? []) {
     </div>
 
     <div
-      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+      class="relative z-20 flex flex-col items-center min-h-screen pt-4 pb-10 px-4"
     >
+      <AppHeader
+        avatarUrl={profile?.avatar_url}
+        userInitial={(profile?.name ?? user.email ?? "?")
+          .charAt(0)
+          .toUpperCase()}
+      />
       <h1
         class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-12 text-center"
       >
