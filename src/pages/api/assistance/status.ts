@@ -35,14 +35,16 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role")
+    .select("role, sponsor_id")
     .eq("id", user.id)
     .single();
 
   const role = profile?.role?.toLowerCase();
+  const canManage =
+    role === "mentor" || role === "admin" || !!profile?.sponsor_id;
 
-  // ── Mentor: unassign o done ──
-  if (role === "mentor") {
+  // ── Mentor / Admin / Sponsor: unassign o done ──
+  if (canManage) {
     if (ar.assigned_mentor !== user.id) {
       return redirect(`${redirectBase}?error=No+eres+el+mentor+asignado`);
     }

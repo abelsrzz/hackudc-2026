@@ -11,16 +11,21 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   } = await supabaseAdmin.auth.getUser(accessToken);
   if (userError || !user) return redirect("/signin");
 
-  // Solo mentores
+  // Solo mentores y sponsors
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role")
+    .select("role, sponsor_id")
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role?.toLowerCase() !== "mentor") {
+  const canManage =
+    profile?.role?.toLowerCase() === "mentor" ||
+    profile?.role?.toLowerCase() === "admin" ||
+    !!profile?.sponsor_id;
+
+  if (!profile || !canManage) {
     return redirect(
-      "/needhelp?error=Solo+los+mentores+pueden+asignarse+solicitudes",
+      "/needhelp?error=Solo+mentores+y+sponsors+pueden+asignarse+solicitudes",
     );
   }
 

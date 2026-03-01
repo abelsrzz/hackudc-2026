@@ -11,15 +11,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   } = await supabaseAdmin.auth.getUser(accessToken.value);
   if (userError || !user) return redirect("/signin");
 
-  // Solo mentores (o admins) pueden responder
+  // Solo mentores, admins y sponsors pueden responder
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("role")
+    .select("role, sponsor_id")
     .eq("id", user.id)
     .single();
 
   const role = profile?.role?.toLowerCase();
-  if (role !== "mentor" && role !== "admin") {
+  const canManage =
+    role === "mentor" || role === "admin" || !!profile?.sponsor_id;
+
+  if (!canManage) {
     return redirect("/dashboard");
   }
 

@@ -15,10 +15,10 @@ const {
 } = await supabaseAdmin.auth.getUser(accessToken.value);
 if (userError || !user) return Astro.redirect("/signin");
 
-// Solo mentores (y admins pueden ver también)
+// Obtener perfil del usuario
 const { data: profile } = await supabaseAdmin
   .from("profiles")
-  .select("role, name, avatar_url")
+  .select("role, name, avatar_url, sponsor_id")
   .eq("id", user.id)
   .single();
 
@@ -26,8 +26,9 @@ const role = profile?.role?.toLowerCase();
 const isMentor = role === "mentor";
 const isAdmin = role === "admin";
 const isHacker = role === "hacker";
+const isSponsor = !!profile?.sponsor_id;
 
-if (!isMentor && !isAdmin && !isHacker) {
+if (!isMentor && !isAdmin && !isHacker && !isSponsor) {
   return Astro.redirect("/dashboard");
 }
 
@@ -93,14 +94,14 @@ const { data: resolvedRequests } = await supabaseAdmin
   .order("created_at", { ascending: false })
   .limit(10);
 
-const pending =
-  isMentor || isAdmin
-    ? (requests?.filter((r: any) => r.status === "pending") ?? [])
-    : [];
-const assigned =
-  isMentor || isAdmin
-    ? (requests?.filter((r: any) => r.status === "assigned") ?? [])
-    : [];
+const canManage = isMentor || isAdmin || isSponsor;
+
+const pending = canManage
+  ? (requests?.filter((r: any) => r.status === "pending") ?? [])
+  : [];
+const assigned = canManage
+  ? (requests?.filter((r: any) => r.status === "assigned") ?? [])
+  : [];
 
 // Hacker: obtener su proyecto y solicitud activa
 let hackerProject: any = null;
@@ -202,9 +203,9 @@ function timeAgo(dateStr: string) {
         Solicitudes de ayuda de los equipos participantes
       </p>
 
-      {/* Contadores: solo para mentores/admins */}
+      {/* Contadores: solo para gestores */}
       {
-        (isMentor || isAdmin) && (
+        canManage && (
           <div class="flex gap-4 mb-10">
             <span class="px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-bold">
               {pending.length} pendientes
@@ -362,7 +363,7 @@ function timeAgo(dateStr: string) {
       }
 
       {
-        (isMentor || isAdmin) && (
+        canManage && (
           <div class="w-full max-w-5xl space-y-10">
             {/* ── Pendientes ── */}
             <section>
@@ -394,7 +395,7 @@ function timeAgo(dateStr: string) {
                             })}
                           </span>
                         </div>
-                        {isMentor && (
+                        {canManage && (
                           <form action="/api/assistance/assign" method="post">
                             <input
                               type="hidden"
