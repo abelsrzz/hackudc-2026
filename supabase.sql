@@ -1,6 +1,12 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+-- Enums
+CREATE TYPE public.role_enum AS ENUM ('Admin', 'Hacker', 'Sponsor', 'Mentor');
+CREATE TYPE public.assitance_status_enum AS ENUM ('pending', 'assigned', 'cancel', 'done');
+CREATE TYPE public.task_status_enum AS ENUM ('pending', 'in_progress', 'done', 'cancel');
+CREATE TYPE public.project_status_enum AS ENUM ('in_progress', 'submitted');
+
 CREATE TABLE public.assistance_requests (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -75,12 +81,27 @@ CREATE TABLE public.project_member (
   CONSTRAINT project_member_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.profiles(id),
   CONSTRAINT project_member_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
+CREATE TABLE public.project_ratings (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  project_id bigint NOT NULL,
+  admin_id uuid NOT NULL,
+  score numeric NOT NULL CHECK (score >= 0::numeric AND score <= 10::numeric),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT project_ratings_pkey PRIMARY KEY (id),
+  CONSTRAINT project_ratings_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT project_ratings_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.projects (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL UNIQUE,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   name character varying,
   challenge_id uuid,
   sede text,
+  github_repo_url text,
+  description_markdown text,
+  status USER-DEFINED NOT NULL DEFAULT 'in_progress'::project_status_enum,
+  submitted_at timestamp with time zone,
   CONSTRAINT projects_pkey PRIMARY KEY (id),
   CONSTRAINT projects_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES public.challenges(id)
 );
@@ -126,5 +147,20 @@ CREATE TABLE public.upvotes (
   entity_type text NOT NULL,
   entity_id text NOT NULL,
   CONSTRAINT upvotes_pkey PRIMARY KEY (id),
-  CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+  CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT upvotes_unique UNIQUE (user_id, entity_type, entity_id)
 );
+
+-- Unique constraints
+ALTER TABLE public.project_ratings
+  ADD CONSTRAINT project_ratings_unique UNIQUE (project_id, admin_id);
+
+-- Indexes
+CREATE INDEX idx_messages_attachment ON public.messages (attachment_path);
+CREATE INDEX idx_profiles_role ON public.profiles (role);
+CREATE INDEX idx_project_ratings_admin_id ON public.project_ratings (admin_id);
+CREATE INDEX idx_project_ratings_project_id ON public.project_ratings (project_id);
+CREATE INDEX idx_projects_status ON public.projects (status);
+CREATE INDEX idx_subtasks_assigned_to ON public.subtasks (assigned_to);
+CREATE INDEX subtasks_assigned_idx ON public.subtasks (assigned_to);
+CREATE INDEX tasks_project_id_idx ON public.tasks (project_id);
