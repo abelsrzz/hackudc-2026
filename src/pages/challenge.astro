@@ -55,6 +55,26 @@ const supabaseUrl = import.meta.env.SUPABASE_URL;
 
 if (error || !challenge) return redirect("/challenges");
 
+// Obtener proyectos que tienen este challenge asignado
+const { data: projectsWithChallenge } = await supabaseAdmin
+  .from("projects")
+  .select(
+    `
+    id,
+    name,
+    sede,
+    project_member (
+      id,
+      profiles (
+        id,
+        name
+      )
+    )
+  `,
+  )
+  .eq("challenge_id", challengeId)
+  .order("name", { ascending: true });
+
 // Verificar si el usuario es el sponsor dueño del challenge
 const isOwner =
   profile?.role === "Sponsor" && profile.sponsor_id === challenge.sponsor_id;
@@ -248,9 +268,53 @@ const contentHtml = marked.parse(challenge.content_markdown || "");
         }
       </div>
 
-      <!-- Chat del challenge -->
-      <div class="mt-10 w-full">
-        <Chat channel={String(challenge.id)} />
+      <!-- Chat y Proyectos -->
+      <div class="mt-10 w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Proyectos asignados al challenge -->
+        <div class="lg:col-span-1">
+          <div class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 p-6 shadow-[0_0_20px_rgba(251,191,36,0.1)]">
+            <h3 class="text-amber-300 font-bold uppercase tracking-wider text-sm mb-4 flex items-center gap-2">
+              <span>🚀</span>
+              Proyectos ({projectsWithChallenge?.length ?? 0})
+            </h3>
+            {projectsWithChallenge && projectsWithChallenge.length > 0 ? (
+              <div class="space-y-3">
+                {projectsWithChallenge.map((project: any) => (
+                  <div class="bg-black/30 border border-amber-400/10 rounded-lg p-3 hover:border-amber-400/30 transition-all">
+                    <h4 class="text-amber-200 font-bold text-sm mb-2">
+                      {project.name}
+                    </h4>
+                    {project.sede && (
+                      <p class="text-amber-100/40 text-xs mb-2 flex items-center gap-1">
+                        <span>📍</span>
+                        {project.sede}
+                      </p>
+                    )}
+                    <div class="flex flex-wrap gap-1">
+                      {project.project_member.map((member: any) => (
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-400/10 border border-amber-400/20 rounded-full text-xs text-amber-200">
+                          <span class="w-3 h-3 rounded-full bg-amber-400/30 border border-amber-400/50 flex items-center justify-center text-amber-300 text-[8px] font-black">
+                            {member.profiles?.name?.charAt(0).toUpperCase() ?? "?"}
+                          </span>
+                          {member.profiles?.name ?? "Hacker"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p class="text-amber-100/30 text-sm italic text-center py-4">
+                Aún no hay proyectos asignados a este challenge
+              </p>
+            )}
+          </div>
+        </div>
+
+        <!-- Chat del challenge -->
+        <div class="lg:col-span-2">
+          <Chat channel={String(challenge.id)} />
+        </div>
       </div>
 
       <div class="mt-6 w-full">
