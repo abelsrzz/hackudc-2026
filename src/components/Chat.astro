@@ -4,9 +4,10 @@ import { marked } from "marked";
 
 interface Props {
   channel: string;
+  maxHeight?: string;
 }
 
-const { channel } = Astro.props;
+const { channel, maxHeight = "50vh" } = Astro.props;
 
 // Configurar marked para mejor soporte de código
 marked.setOptions({
@@ -176,7 +177,7 @@ function roleBadge(role: string | undefined) {
   <div
     id={`chat-box-${channel}`}
     class="chat-box bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-4 overflow-y-auto space-y-3 mb-3"
-    style="max-height: 50vh; min-height: 300px;"
+    style={`max-height: ${maxHeight}; min-height: 300px;`}
   >
     {
       messages.length === 0 && (
