@@ -1,17 +1,6 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
-CREATE TABLE public.upvotes (
-  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  user_id uuid NOT NULL,
-  entity_type text NOT NULL,  -- 'project' | 'challenge' | 'photo' | cualquier entidad futura
-  entity_id text NOT NULL,    -- id de la entidad como texto (permite bigint y uuid)
-  CONSTRAINT upvotes_pkey PRIMARY KEY (id),
-  CONSTRAINT upvotes_unique UNIQUE (user_id, entity_type, entity_id),
-  CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-
 CREATE TABLE public.assistance_requests (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -95,4 +84,13 @@ CREATE TABLE public.sponsors (
   active boolean DEFAULT true,
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT sponsors_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.upvotes (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  user_id uuid NOT NULL,
+  entity_type text NOT NULL,
+  entity_id text NOT NULL,
+  CONSTRAINT upvotes_pkey PRIMARY KEY (id),
+  CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );

@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
+import Chat from "../components/Chat.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
 import { marked } from "marked";
@@ -160,7 +161,12 @@ const contentHtml = marked.parse(challenge.content_markdown || "");
         }
       </div>
 
+      <!-- Chat del challenge -->
       <div class="mt-10 w-full">
+        <Chat channel={String(challenge.id)} />
+      </div>
+
+      <div class="mt-6 w-full">
         <Footer />
       </div>
     </div>

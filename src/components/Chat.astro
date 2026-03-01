@@ -1,0 +1,376 @@
+---
+import { supabaseAdmin } from "../lib/supabase";
+
+interface Props {
+  channel: string;
+}
+
+const { channel } = Astro.props;
+
+const accessToken = Astro.cookies.get("sb-access-token");
+if (!accessToken) return;
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return;
+
+const { data: profile } = await supabaseAdmin
+  .from("profiles")
+  .select("name")
+  .eq("id", user.id)
+  .single();
+
+const { data: initialMessages } = await supabaseAdmin
+  .from("messages")
+  .select(
+    `
+    id,
+    content,
+    created_at,
+    edited_at,
+    user_id,
+    reply_to,
+    profiles (
+      name
+    )
+  `,
+  )
+  .eq("channel", channel)
+  .order("created_at", { ascending: true });
+
+const messages = initialMessages || [];
+const userId = user.id;
+const userName = profile?.name || "Usuario";
+---
+
+<div class="chat-component w-full">
+  <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+    Chat — {channel}
+  </p>
+
+  <!-- Caja de mensajes -->
+  <div
+    id={`chat-box-${channel}`}
+    class="chat-box bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-4 overflow-y-auto space-y-3 mb-3"
+    style="max-height: 50vh; min-height: 300px;"
+  >
+    {
+      messages.length === 0 && (
+        <p class="text-amber-100/30 text-sm italic text-center py-8">
+          No hay mensajes aún. ¡Sé el primero en escribir!
+        </p>
+      )
+    }
+    {
+      messages.map((msg: any) => {
+        const isOwn = msg.user_id === userId;
+        return (
+          <div
+            class={`message group rounded-lg p-4 transition-all duration-200 ${
+              isOwn
+                ? "bg-amber-900/25 border border-amber-500/30 hover:border-amber-400/60"
+                : "bg-black/30 border border-amber-400/10 hover:border-amber-400/30"
+            }`}
+            data-message-id={msg.id}
+            data-user-id={msg.user_id}
+          >
+            <div
+              class={`flex items-start gap-2 mb-2 ${isOwn ? "flex-row-reverse justify-start" : "justify-between"}`}
+            >
+              <div
+                class={`flex items-center gap-2 ${isOwn ? "flex-row-reverse" : ""}`}
+              >
+                <span
+                  class={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                    isOwn
+                      ? "bg-amber-400/40 border border-amber-300/70 text-amber-100"
+                      : "bg-amber-400/20 border border-amber-400/50 text-amber-300"
+                  }`}
+                >
+                  {msg.profiles?.name?.charAt(0).toUpperCase() || "?"}
+                </span>
+                <span
+                  class={`font-semibold text-sm ${isOwn ? "text-amber-300" : "text-amber-200"}`}
+                >
+                  {msg.profiles?.name || "Usuario"}
+                </span>
+                {msg.edited_at && (
+                  <span class="text-amber-400/50 text-xs italic">
+                    (editado)
+                  </span>
+                )}
+              </div>
+              <span class="text-amber-400/40 text-xs shrink-0 mt-0.5">
+                {new Date(msg.created_at).toLocaleTimeString("es-ES", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
+            {msg.reply_to && (
+              <div
+                class={`mb-2 text-amber-400/60 text-xs italic ${isOwn ? "mr-10 text-right" : "ml-10"}`}
+              >
+                ↳ Respondiendo a un mensaje anterior
+              </div>
+            )}
+            <div
+              class={`text-amber-100/90 text-sm leading-relaxed ${isOwn ? "mr-10 text-right" : "ml-10"}`}
+            >
+              {msg.content}
+            </div>
+            <div
+              class={`mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${
+                isOwn ? "mr-10 justify-end" : "ml-10"
+              }`}
+            >
+              <button
+                class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
+                data-reply-to={msg.id}
+              >
+                Responder
+              </button>
+              {isOwn && (
+                <button
+                  class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
+                  data-message-id={msg.id}
+                  data-content={msg.content}
+                >
+                  Editar
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })
+    }
+  </div>
+
+  <!-- Indicador de respuesta -->
+  <div
+    id={`reply-indicator-${channel}`}
+    class="reply-indicator bg-amber-500/10 border border-amber-400/30 rounded-lg px-4 py-2 mb-2 flex items-center justify-between"
+    style="display:none;"
+  >
+    <span class="text-amber-300 text-sm">
+      Respondiendo a: <span class="reply-to-preview font-bold italic"></span>
+    </span>
+    <button
+      class="cancel-reply-btn text-amber-400/70 hover:text-amber-300 text-sm font-semibold uppercase tracking-wide transition-colors"
+    >
+      Cancelar
+    </button>
+  </div>
+
+  <!-- Input de mensaje -->
+  <div
+    class="bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-3 flex gap-3"
+  >
+    <input
+      type="text"
+      class="message-input flex-1 bg-black/50 border border-amber-400/20 focus:border-amber-400/50 rounded-lg px-4 py-2.5 text-amber-100 placeholder-amber-400/30 outline-none transition-colors text-sm"
+      placeholder="Escribe un mensaje..."
+    />
+    <button
+      class="send-btn px-5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all duration-300 shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
+    >
+      Enviar
+    </button>
+  </div>
+</div>
+
+<script define:vars={{ userId, userName, channel }}>
+  // Scope to this specific chat instance using the channel id
+  const chatBox = document.getElementById(`chat-box-${channel}`);
+  const replyIndicator = document.getElementById(`reply-indicator-${channel}`);
+
+  // Use the closest parent .chat-component to scope the other elements
+  const chatRoot = chatBox?.closest(".chat-component");
+  const messageInput = chatRoot?.querySelector(".message-input");
+  const sendBtn = chatRoot?.querySelector(".send-btn");
+  const replyToPreview = replyIndicator?.querySelector(".reply-to-preview");
+  const cancelReplyBtn = replyIndicator?.querySelector(".cancel-reply-btn");
+
+  let replyTo = null;
+  let replyToText = null;
+
+  function addMessageToDOM(msg) {
+    // Remove empty state message if present
+    const emptyMsg = chatBox?.querySelector("p.italic");
+    if (emptyMsg) emptyMsg.remove();
+
+    const isOwn = msg.user_id === userId;
+    const messageDiv = document.createElement("div");
+    messageDiv.className = isOwn
+      ? "message group bg-amber-900/25 border border-amber-500/30 hover:border-amber-400/60 rounded-lg p-4 transition-all duration-200"
+      : "message group bg-black/30 border border-amber-400/10 hover:border-amber-400/30 rounded-lg p-4 transition-all duration-200";
+    messageDiv.dataset.messageId = msg.id;
+    messageDiv.dataset.userId = msg.user_id;
+
+    const name = msg.profiles?.name || userName;
+    const initial = name.charAt(0).toUpperCase();
+    const time = msg.created_at
+      ? new Date(msg.created_at).toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+
+    const avatarClass = isOwn
+      ? "w-8 h-8 rounded-full bg-amber-400/40 border border-amber-300/70 flex items-center justify-center text-amber-100 text-xs font-black shrink-0"
+      : "w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0";
+    const nameClass = isOwn
+      ? "text-amber-300 font-semibold text-sm"
+      : "text-amber-200 font-semibold text-sm";
+    const headerDir = isOwn ? "flex-row-reverse" : "";
+    const nameRowDir = isOwn ? "flex-row-reverse" : "";
+    const contentClass = isOwn ? "mr-10 text-right" : "ml-10";
+    const actionsClass = isOwn ? "mr-10 justify-end" : "ml-10";
+
+    let html = `
+      <div class="flex items-start gap-2 mb-2 ${headerDir}">
+        <div class="flex items-center gap-2 ${nameRowDir}">
+          <span class="${avatarClass}">${initial}</span>
+          <span class="${nameClass}">${name}</span>
+        </div>
+        <span class="text-amber-400/40 text-xs shrink-0 mt-0.5" style="margin-${isOwn ? "right" : "left"}:auto">${time}</span>
+      </div>
+    `;
+
+    if (msg.reply_to) {
+      html += `<div class="${contentClass} mb-2 text-amber-400/60 text-xs italic">↳ Respondiendo a un mensaje anterior</div>`;
+    }
+
+    html += `<div class="${contentClass} text-amber-100/90 text-sm leading-relaxed">${msg.content}</div>`;
+    html += `<div class="${actionsClass} mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">`;
+    html += `<button class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-reply-to="${msg.id}">Responder</button>`;
+    if (isOwn) {
+      html += `<button class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-message-id="${msg.id}" data-content="${msg.content.replace(/"/g, "&quot;")}">Editar</button>`;
+    }
+    html += `</div>`;
+
+    messageDiv.innerHTML = html;
+    chatBox?.appendChild(messageDiv);
+    chatBox?.scrollTo({ top: chatBox.scrollHeight, behavior: "smooth" });
+
+    // Attach event listeners to new buttons
+    messageDiv
+      .querySelector(".reply-btn")
+      ?.addEventListener("click", handleReplyClick);
+    if (msg.user_id === userId) {
+      messageDiv
+        .querySelector(".edit-btn")
+        ?.addEventListener("click", handleEditClick);
+    }
+  }
+
+  async function sendMessage() {
+    const content = messageInput?.value?.trim();
+    if (!content) return;
+
+    const body = { content, channel, reply_to: replyTo };
+
+    try {
+      const response = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (messageInput) messageInput.value = "";
+        clearReply();
+        if (result.data?.[0]) {
+          addMessageToDOM({
+            ...result.data[0],
+            profiles: { name: userName },
+          });
+        }
+      } else {
+        const errText = await response.text();
+        alert("Error al enviar: " + errText);
+      }
+    } catch (err) {
+      alert("Error de conexión.");
+    }
+  }
+
+  function clearReply() {
+    replyTo = null;
+    replyToText = null;
+    if (replyIndicator) replyIndicator.style.display = "none";
+    if (replyToPreview) replyToPreview.textContent = "";
+  }
+
+  function handleReplyClick(e) {
+    const btn = e.currentTarget;
+    replyTo = btn.dataset.replyTo;
+    // Show a snippet of the message content as preview
+    const msgDiv = btn.closest(".message");
+    const contentEl = msgDiv?.querySelector(".text-amber-100\\/90");
+    replyToText = contentEl?.textContent?.trim().slice(0, 60) || replyTo;
+    if (replyToPreview) replyToPreview.textContent = replyToText;
+    if (replyIndicator) replyIndicator.style.display = "flex";
+    messageInput?.focus();
+  }
+
+  async function handleEditClick(e) {
+    const btn = e.currentTarget;
+    const messageId = btn.dataset.messageId;
+    const currentContent = btn.dataset.content;
+    const newContent = prompt("Editar mensaje:", currentContent);
+    if (!newContent || newContent === currentContent) return;
+
+    try {
+      const response = await fetch("/api/chat/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, newContent }),
+      });
+      if (response.ok) {
+        // Update the content in the DOM
+        const msgDiv = btn.closest(".message");
+        const contentEl = msgDiv?.querySelector(".text-amber-100\\/90");
+        if (contentEl) contentEl.textContent = newContent;
+        btn.dataset.content = newContent;
+        // Add edited indicator if not already there
+        const nameRow = msgDiv?.querySelector(".flex.items-center.gap-2");
+        if (nameRow && !nameRow.querySelector(".edited-tag")) {
+          const tag = document.createElement("span");
+          tag.className = "edited-tag text-amber-400/50 text-xs italic";
+          tag.textContent = "(editado)";
+          nameRow.appendChild(tag);
+        }
+      } else {
+        alert("Error al editar el mensaje.");
+      }
+    } catch {
+      alert("Error de conexión.");
+    }
+  }
+
+  // Attach handlers to existing reply/edit buttons
+  chatRoot?.querySelectorAll(".reply-btn").forEach((btn) => {
+    btn.addEventListener("click", handleReplyClick);
+  });
+  chatRoot?.querySelectorAll(".edit-btn").forEach((btn) => {
+    btn.addEventListener("click", handleEditClick);
+  });
+
+  cancelReplyBtn?.addEventListener("click", clearReply);
+
+  sendBtn?.addEventListener("click", sendMessage);
+
+  messageInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // Scroll to bottom on load
+  if (chatBox) chatBox.scrollTo(0, chatBox.scrollHeight);
+</script>

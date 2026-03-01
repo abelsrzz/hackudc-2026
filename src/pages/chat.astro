@@ -1,60 +1,17 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase, supabaseAdmin } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
+import ChatComponent from "../components/Chat.astro";
 
-// Auth check
 const accessToken = Astro.cookies.get("sb-access-token");
-const refreshToken = Astro.cookies.get("sb-refresh-token");
+if (!accessToken) return Astro.redirect("/signin");
 
-if (!accessToken || !refreshToken) {
-  return Astro.redirect("/signin");
-}
-
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return Astro.redirect("/signin");
-  }
-} catch (error) {
-  return Astro.redirect("/signin");
-}
-
-const user = session.data.user;
-
-// Obtener perfil del usuario
-const { data: profile } = await supabaseAdmin
-  .from("profiles")
-  .select("name, role")
-  .eq("id", user?.id)
-  .single();
-
-const channel = "general";
-
-// Obtener mensajes iniciales con información del usuario
-const { data: initialMessages } = await supabaseAdmin
-  .from("messages")
-  .select(
-    `
-    id,
-    content,
-    created_at,
-    edited_at,
-    user_id,
-    reply_to,
-    profiles (
-      name
-    )
-  `,
-  )
-  .eq("channel", channel)
-  .order("created_at", { ascending: true });
-
-const messages = initialMessages || [];
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return Astro.redirect("/signin");
 ---
 
 <Layout title="Chat — HackUDC">
@@ -106,226 +63,14 @@ const messages = initialMessages || [];
           Chat
         </h1>
         <p class="text-amber-100/60 mt-3 text-base tracking-wide">
-          Sala: <span class="text-amber-300 font-bold">{channel}</span>
+          Sala: <span class="text-amber-300 font-bold">general</span>
         </p>
       </div>
 
-      <!-- Contenedor del chat -->
-      <div class="w-full max-w-5xl mx-auto flex-1 flex flex-col">
-        <!-- Caja de mensajes -->
-        <div
-          id="chat-box"
-          class="flex-1 bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-4 sm:p-6 overflow-y-auto space-y-3 mb-4"
-          style="max-height: 60vh; min-height: 400px;"
-        >
-          {
-            messages.map((msg: any) => (
-              <div
-                class="message group bg-black/30 border border-amber-400/10 hover:border-amber-400/30 rounded-lg p-4 transition-all duration-200"
-                data-message-id={msg.id}
-                data-user-id={msg.user_id}
-              >
-                <div class="flex items-start justify-between gap-2 mb-2">
-                  <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black">
-                      {msg.profiles?.name?.charAt(0).toUpperCase() || "?"}
-                    </span>
-                    <span class="text-amber-200 font-semibold text-sm">
-                      {msg.profiles?.name || "Usuario"}
-                    </span>
-                    {msg.edited_at && (
-                      <span class="text-amber-400/50 text-xs italic">
-                        (editado)
-                      </span>
-                    )}
-                  </div>
-                  <span class="text-amber-400/40 text-xs">
-                    {new Date(msg.created_at).toLocaleTimeString("es-ES", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                {msg.reply_to && (
-                  <div class="ml-10 mb-2 text-amber-400/60 text-xs italic">
-                    ↳ Respondiendo al mensaje {msg.reply_to}
-                  </div>
-                )}
-                <div class="ml-10 text-amber-100/90 text-sm leading-relaxed">
-                  {msg.content}
-                </div>
-                <div class="ml-10 mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
-                    data-reply-to={msg.id}
-                  >
-                    Responder
-                  </button>
-                  {msg.user_id === user?.id && (
-                    <button
-                      class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
-                      data-message-id={msg.id}
-                      data-content={msg.content}
-                    >
-                      Editar
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))
-          }
-        </div>
-
-        <!-- Indicador de respuesta -->
-        <div
-          id="reply-indicator"
-          class="hidden bg-amber-500/10 border border-amber-400/30 rounded-lg px-4 py-2 mb-3 flex items-center justify-between"
-        >
-          <span class="text-amber-300 text-sm">
-            Respondiendo al mensaje <span id="reply-to-id" class="font-bold"
-            ></span>
-          </span>
-          <button
-            id="cancel-reply"
-            class="text-amber-400/70 hover:text-amber-300 text-sm font-semibold uppercase tracking-wide transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-
-        <!-- Input de mensaje -->
-        <div
-          class="bg-black/40 backdrop-blur-sm border border-amber-400/20 rounded-xl p-4 flex gap-3"
-        >
-          <input
-            type="text"
-            id="message-input"
-            placeholder="Escribe un mensaje..."
-            class="flex-1 bg-black/50 border border-amber-400/20 focus:border-amber-400/50 rounded-lg px-4 py-3 text-amber-100 placeholder-amber-400/30 outline-none transition-colors"
-          />
-          <button
-            id="send-btn"
-            class="px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all duration-300 shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
-          >
-            Enviar
-          </button>
-        </div>
+      <!-- Componente Chat -->
+      <div class="w-full max-w-5xl mx-auto flex-1 flex flex-col pb-4">
+        <ChatComponent channel="general" />
       </div>
     </div>
   </main>
 </Layout>
-
-<script
-  define:vars={{
-    userId: user?.id || "",
-    userName: profile?.name || "Usuario",
-  }}
->
-  const channel = "general";
-  let replyTo = null;
-
-  const chatBox = document.getElementById("chat-box");
-  const messageInput = document.getElementById("message-input");
-  const sendBtn = document.getElementById("send-btn");
-  const replyIndicator = document.getElementById("reply-indicator");
-  const replyToIdSpan = document.getElementById("reply-to-id");
-  const cancelReplyBtn = document.getElementById("cancel-reply");
-
-  // Función para añadir mensaje al DOM
-  function addMessageToDOM(msg) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className =
-      "message group bg-black/30 border border-amber-400/10 hover:border-amber-400/30 rounded-lg p-4 transition-all duration-200";
-    messageDiv.dataset.messageId = msg.id;
-    messageDiv.dataset.userId = msg.user_id;
-
-    const userName = msg.profiles?.name || userName;
-    const initial = userName?.charAt(0).toUpperCase() || "?";
-    const time = msg.created_at
-      ? new Date(msg.created_at).toLocaleTimeString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "";
-
-    let html = `
-        <div class="flex items-start justify-between gap-2 mb-2">
-          <div class="flex items-center gap-2">
-            <span class="w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black">
-              ${initial}
-            </span>
-            <span class="text-amber-200 font-semibold text-sm">${userName}</span>
-            ${msg.edited_at ? '<span class="text-amber-400/50 text-xs italic">(editado)</span>' : ""}
-          </div>
-          <span class="text-amber-400/40 text-xs">${time}</span>
-        </div>
-      `;
-
-    if (msg.reply_to) {
-      html += `<div class="ml-10 mb-2 text-amber-400/60 text-xs italic">↳ Respondiendo al mensaje ${msg.reply_to}</div>`;
-    }
-
-    html += `<div class="ml-10 text-amber-100/90 text-sm leading-relaxed">${msg.content}</div>`;
-    html += `<div class="ml-10 mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">`;
-    html += `<button class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-reply-to="${msg.id}">Responder</button>`;
-
-    if (msg.user_id === userId) {
-      html += `<button class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-message-id="${msg.id}" data-content="${msg.content}">Editar</button>`;
-    }
-
-    html += `</div>`;
-
-    messageDiv.innerHTML = html;
-    chatBox?.appendChild(messageDiv);
-    chatBox?.scrollTo({ top: chatBox.scrollHeight, behavior: "smooth" });
-  }
-
-  // TEMPORALMENTE SIN REALTIME - Solo probando el envío
-
-  // Enviar mensaje
-  async function sendMessage() {
-    const content = messageInput?.value.trim();
-    if (!content) return;
-
-    try {
-      const response = await fetch("/api/chat/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, channel, reply_to: replyTo }),
-      });
-
-      if (response.ok) {
-        if (messageInput) messageInput.value = "";
-        replyTo = null;
-        if (replyIndicator) replyIndicator.classList.add("hidden");
-
-        // Recargar mensajes o agregar con realtime
-        window.location.reload();
-      } else {
-        const errorText = await response.text();
-        alert("Error al enviar mensaje: " + errorText);
-      }
-    } catch (error) {
-      alert("Error al enviar mensaje. Verifica tu conexión.");
-    }
-  }
-
-  // Event listeners
-  if (sendBtn) {
-    sendBtn.addEventListener("click", () => {
-      sendMessage();
-    });
-  }
-
-  if (messageInput) {
-    messageInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-  }
-
-  // Scroll inicial al final
-  if (chatBox) chatBox.scrollTo(0, chatBox.scrollHeight);
-</script>

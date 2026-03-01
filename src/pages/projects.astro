@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
+import Chat from "../components/Chat.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
 import UpvoteButton from "../components/UpvoteButton.astro";
@@ -468,6 +469,11 @@ if (userProjectId) {
                           </button>
                         </form>
                       )}
+                    </div>
+
+                    {/* Chat del proyecto */}
+                    <div class="mt-2 pt-6 border-t border-amber-400/15">
+                      <Chat channel={String(userProjectId)} />
                     </div>
                   </div>
                 </section>
