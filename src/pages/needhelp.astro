@@ -24,8 +24,9 @@ const { data: profile } = await supabaseAdmin
 const role = profile?.role?.toLowerCase();
 const isMentor = role === "mentor";
 const isAdmin = role === "admin";
+const isHacker = role === "hacker";
 
-if (!isMentor && !isAdmin) {
+if (!isMentor && !isAdmin && !isHacker) {
   return Astro.redirect("/dashboard");
 }
 
@@ -91,8 +92,48 @@ const { data: resolvedRequests } = await supabaseAdmin
   .order("created_at", { ascending: false })
   .limit(10);
 
-const pending = requests?.filter((r: any) => r.status === "pending") ?? [];
-const assigned = requests?.filter((r: any) => r.status === "assigned") ?? [];
+const pending =
+  isMentor || isAdmin
+    ? (requests?.filter((r: any) => r.status === "pending") ?? [])
+    : [];
+const assigned =
+  isMentor || isAdmin
+    ? (requests?.filter((r: any) => r.status === "assigned") ?? [])
+    : [];
+
+// Hacker: obtener su proyecto y solicitud activa
+let hackerProject: any = null;
+let hackerActiveRequest: any = null;
+
+if (isHacker) {
+  const { data: membership } = await supabaseAdmin
+    .from("project_member")
+    .select("project_id")
+    .eq("member_id", user.id)
+    .maybeSingle();
+
+  if (membership) {
+    const { data: proj } = await supabaseAdmin
+      .from("projects")
+      .select(`id, name, sede, challenges(id, title)`)
+      .eq("id", membership.project_id)
+      .single();
+    hackerProject = proj;
+
+    if (proj) {
+      const { data: ar } = await supabaseAdmin
+        .from("assistance_requests")
+        .select(
+          `id, created_at, status, request, mentor_response,
+           mentor_profile:profiles!assistance_requests_assigned_mentor_fkey(id, name)`,
+        )
+        .eq("project_id", proj.id)
+        .in("status", ["pending", "assigned"])
+        .maybeSingle();
+      hackerActiveRequest = ar;
+    }
+  }
+}
 
 function timeAgo(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -152,19 +193,19 @@ function timeAgo(dateStr: string) {
         Solicitudes de ayuda de los equipos participantes
       </p>
 
-      <!-- Contadores -->
-      <div class="flex gap-4 mb-10">
-        <span
-          class="px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-bold"
-        >
-          {pending.length} pendientes
-        </span>
-        <span
-          class="px-3 py-1 rounded-full bg-blue-400/10 border border-blue-400/30 text-blue-300 text-xs font-bold"
-        >
-          {assigned.length} asignadas
-        </span>
-      </div>
+      {/* Contadores: solo para mentores/admins */}
+      {
+        (isMentor || isAdmin) && (
+          <div class="flex gap-4 mb-10">
+            <span class="px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-bold">
+              {pending.length} pendientes
+            </span>
+            <span class="px-3 py-1 rounded-full bg-blue-400/10 border border-blue-400/30 text-blue-300 text-xs font-bold">
+              {assigned.length} asignadas
+            </span>
+          </div>
+        )
+      }
 
       {
         errorMsg && (
@@ -174,183 +215,188 @@ function timeAgo(dateStr: string) {
         )
       }
 
-      <div class="w-full max-w-5xl space-y-10">
-        {/* ── Pendientes ── */}
-        <section>
-          <h2
-            class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2"
-          >
-            <span
-              class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block"
-            ></span>
-            Pendientes ({pending.length})
-          </h2>
-
-          {
-            pending.length === 0 ? (
-              <div class="text-center py-10 text-amber-100/30 text-sm italic">
-                No hay solicitudes pendientes 🎉
+      {/* ── Sección del Hacker ── */}
+      {
+        isHacker && (
+          <div class="w-full max-w-5xl mb-10">
+            {!hackerProject ? (
+              <div class="text-center py-12 bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 px-6">
+                <p class="text-amber-100/50 text-sm mb-5">
+                  Necesitas registrar un proyecto antes de pedir ayuda al equipo
+                  de mentores.
+                </p>
+                <a
+                  href="/projects"
+                  class="inline-block px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+                >
+                  → Ir a Proyectos
+                </a>
               </div>
-            ) : (
-              <div class="space-y-4">
-                {pending.map((r: any) => (
-                  <div class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
-                    <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
-                      <div class="flex items-center gap-3">
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold uppercase tracking-widest">
-                          Pendiente
-                        </span>
-                        <span class="text-amber-100/30 text-xs">
-                          hace {timeAgo(r.created_at)} ·{" "}
-                          {new Date(r.created_at).toLocaleString("es-ES", {
-                            day: "2-digit",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                      {isMentor && (
-                        <form action="/api/assistance/assign" method="post">
-                          <input type="hidden" name="request_id" value={r.id} />
-                          <button
-                            type="submit"
-                            class="px-5 py-2 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_12px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
-                          >
-                            Asignarme
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                    <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Info del proyecto */}
-                      <div class="md:col-span-1 space-y-2">
-                        <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold">
-                          Proyecto
-                        </p>
-                        <p class="text-amber-200 font-black text-base uppercase tracking-wide">
-                          {r.projects?.name ?? "—"}
-                        </p>
-                        {r.projects?.challenges && (
-                          <p class="text-amber-300/70 text-xs flex items-center gap-1">
-                            <span>🏆</span> {r.projects.challenges.title}
-                          </p>
-                        )}
-                        {r.projects?.sede && (
-                          <p class="text-amber-100/40 text-xs flex items-center gap-1">
-                            <span>📍</span> {r.projects.sede}
-                          </p>
-                        )}
-                        <div class="flex flex-wrap gap-1.5 pt-1">
-                          {r.projects?.project_member?.map((m: any) => (
-                            <span class="px-2 py-0.5 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/60">
-                              {m.profiles?.name ?? "Hacker"}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Duda */}
-                      <div class="md:col-span-2">
-                        <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
-                          Solicitud
-                        </p>
-                        <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
-                          {r.request}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          }
-        </section>
-
-        {/* ── Asignadas ── */}
-        <section>
-          <h2
-            class="text-blue-300/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2"
-          >
-            <span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
-            Asignadas ({assigned.length})
-          </h2>
-
-          {
-            assigned.length === 0 ? (
-              <div class="text-center py-6 text-amber-100/20 text-sm italic">
-                No hay solicitudes asignadas
-              </div>
-            ) : (
-              <div class="space-y-4">
-                {assigned.map((r: any) => {
-                  const isMyRequest = r.assigned_mentor === user.id;
-                  return (
-                    <div
-                      class={`bg-black/50 backdrop-blur-sm rounded-xl border overflow-hidden transition-all ${isMyRequest ? "border-blue-400/40 shadow-[0_0_20px_rgba(96,165,250,0.1)]" : "border-amber-400/15"}`}
+            ) : hackerActiveRequest ? (
+              <div class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
+                <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span
+                      class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${hackerActiveRequest.status === "assigned" ? "bg-blue-400/20 border border-blue-400/40 text-blue-300" : "bg-amber-400/20 border border-amber-400/40 text-amber-300"}`}
                     >
+                      {hackerActiveRequest.status === "assigned"
+                        ? "Asignada"
+                        : "Pendiente"}
+                    </span>
+                    {hackerActiveRequest.status === "assigned" && (
+                      <span class="text-amber-100/40 text-xs font-medium">
+                        🧑‍💻 Mentor:{" "}
+                        {(hackerActiveRequest.mentor_profile as any)?.name ??
+                          "—"}
+                      </span>
+                    )}
+                    <span class="text-amber-100/30 text-xs">
+                      hace {timeAgo(hackerActiveRequest.created_at)}
+                    </span>
+                  </div>
+                  <div class="flex gap-2">
+                    <form action="/api/assistance/status" method="post">
+                      <input
+                        type="hidden"
+                        name="request_id"
+                        value={hackerActiveRequest.id}
+                      />
+                      <input type="hidden" name="status" value="done" />
+                      <input type="hidden" name="origin" value="needhelp" />
+                      <button
+                        type="submit"
+                        class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                      >
+                        ✓ Resuelto
+                      </button>
+                    </form>
+                    <form action="/api/assistance/status" method="post">
+                      <input
+                        type="hidden"
+                        name="request_id"
+                        value={hackerActiveRequest.id}
+                      />
+                      <input type="hidden" name="status" value="cancel" />
+                      <input type="hidden" name="origin" value="needhelp" />
+                      <button
+                        type="submit"
+                        class="px-4 py-2 bg-black/40 hover:bg-red-900/30 border border-amber-400/15 hover:border-red-500/40 text-amber-200/40 hover:text-red-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                      >
+                        Cancelar
+                      </button>
+                    </form>
+                  </div>
+                </div>
+                <div class="px-5 py-4 space-y-3">
+                  <div>
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                      Tu solicitud
+                    </p>
+                    <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
+                      {hackerActiveRequest.request}
+                    </p>
+                  </div>
+                  {hackerActiveRequest.mentor_response && (
+                    <div class="px-4 py-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                      <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
+                        💬 Respuesta del mentor
+                      </p>
+                      <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
+                        {hackerActiveRequest.mentor_response}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/40 shadow-[0_0_30px_rgba(251,191,36,0.12)] overflow-hidden">
+                <div class="px-6 py-4 border-b border-amber-400/20 flex items-center gap-3">
+                  <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                    🙋 Pedir ayuda — {hackerProject.name}
+                  </span>
+                  {hackerProject.sede && (
+                    <span class="text-amber-100/40 text-xs">
+                      📍 {hackerProject.sede}
+                    </span>
+                  )}
+                </div>
+                <form
+                  action="/api/assistance/create"
+                  method="post"
+                  class="px-6 py-5 flex flex-col gap-3"
+                >
+                  <input type="hidden" name="origin" value="needhelp" />
+                  <textarea
+                    name="request"
+                    placeholder="Describe tu duda o problema…"
+                    required
+                    rows={3}
+                    class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+                  />
+                  <button
+                    type="submit"
+                    class="self-start px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    🙋 Enviar solicitud
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      {
+        (isMentor || isAdmin) && (
+          <div class="w-full max-w-5xl space-y-10">
+            {/* ── Pendientes ── */}
+            <section>
+              <h2 class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />
+                Pendientes ({pending.length})
+              </h2>
+
+              {pending.length === 0 ? (
+                <div class="text-center py-10 text-amber-100/30 text-sm italic">
+                  No hay solicitudes pendientes 🎉
+                </div>
+              ) : (
+                <div class="space-y-4">
+                  {pending.map((r: any) => (
+                    <div class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
                       <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex items-center gap-3">
-                          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-400/20 border border-blue-400/40 text-blue-300 font-bold uppercase tracking-widest">
-                            Asignada
-                          </span>
-                          <span class="text-amber-100/40 text-xs font-medium">
-                            🧑‍💻 {(r.mentor_profile as any)?.name ?? "Mentor"}
-                            {isMyRequest && (
-                              <span class="ml-1 text-blue-300">(tú)</span>
-                            )}
+                          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold uppercase tracking-widest">
+                            Pendiente
                           </span>
                           <span class="text-amber-100/30 text-xs">
-                            hace {timeAgo(r.created_at)}
+                            hace {timeAgo(r.created_at)} ·{" "}
+                            {new Date(r.created_at).toLocaleString("es-ES", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </span>
                         </div>
-                        {isMyRequest && (
-                          <div class="flex gap-2">
-                            <form action="/api/assistance/status" method="post">
-                              <input
-                                type="hidden"
-                                name="request_id"
-                                value={r.id}
-                              />
-                              <input
-                                type="hidden"
-                                name="status"
-                                value="unassign"
-                              />
-                              <input
-                                type="hidden"
-                                name="origin"
-                                value="needhelp"
-                              />
-                              <button
-                                type="submit"
-                                class="px-4 py-2 bg-black/40 hover:bg-amber-900/30 border border-amber-400/20 hover:border-amber-400/50 text-amber-200/60 hover:text-amber-200 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
-                              >
-                                Desasignarme
-                              </button>
-                            </form>
-                            <form action="/api/assistance/status" method="post">
-                              <input
-                                type="hidden"
-                                name="request_id"
-                                value={r.id}
-                              />
-                              <input type="hidden" name="status" value="done" />
-                              <input
-                                type="hidden"
-                                name="origin"
-                                value="needhelp"
-                              />
-                              <button
-                                type="submit"
-                                class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
-                              >
-                                ✓ Resuelto
-                              </button>
-                            </form>
-                          </div>
+                        {isMentor && (
+                          <form action="/api/assistance/assign" method="post">
+                            <input
+                              type="hidden"
+                              name="request_id"
+                              value={r.id}
+                            />
+                            <button
+                              type="submit"
+                              class="px-5 py-2 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_12px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                            >
+                              Asignarme
+                            </button>
+                          </form>
                         )}
                       </div>
                       <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Info del proyecto */}
                         <div class="md:col-span-1 space-y-2">
                           <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold">
                             Proyecto
@@ -376,59 +422,61 @@ function timeAgo(dateStr: string) {
                             ))}
                           </div>
                         </div>
-                        <div class="md:col-span-2 space-y-3">
-                          <div>
-                            <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
-                              Solicitud
-                            </p>
-                            <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
-                              {r.request}
-                            </p>
+                        {/* Duda */}
+                        <div class="md:col-span-2">
+                          <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                            Solicitud
+                          </p>
+                          <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
+                            {r.request}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Asignadas ── */}
+            <section>
+              <h2 class="text-blue-300/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-blue-400 inline-block" />
+                Asignadas ({assigned.length})
+              </h2>
+
+              {assigned.length === 0 ? (
+                <div class="text-center py-6 text-amber-100/20 text-sm italic">
+                  No hay solicitudes asignadas
+                </div>
+              ) : (
+                <div class="space-y-4">
+                  {assigned.map((r: any) => {
+                    const isMyRequest = r.assigned_mentor === user.id;
+                    return (
+                      <div
+                        class={`bg-black/50 backdrop-blur-sm rounded-xl border overflow-hidden transition-all ${isMyRequest ? "border-blue-400/40 shadow-[0_0_20px_rgba(96,165,250,0.1)]" : "border-amber-400/15"}`}
+                      >
+                        <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
+                          <div class="flex items-center gap-3">
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-400/20 border border-blue-400/40 text-blue-300 font-bold uppercase tracking-widest">
+                              Asignada
+                            </span>
+                            <span class="text-amber-100/40 text-xs font-medium">
+                              🧑‍💻 {(r.mentor_profile as any)?.name ?? "Mentor"}
+                              {isMyRequest && (
+                                <span class="ml-1 text-blue-300">(tú)</span>
+                              )}
+                            </span>
+                            <span class="text-amber-100/30 text-xs">
+                              hace {timeAgo(r.created_at)}
+                            </span>
                           </div>
-                          {/* Respuesta del mentor visible para todos */}
-                          {r.mentor_response && (
-                            <div class="px-4 py-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                              <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
-                                💬 Respuesta
-                              </p>
-                              <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
-                                {r.mentor_response}
-                              </p>
-                            </div>
-                          )}
-                          {/* Formulario de respuesta: solo para el mentor asignado */}
                           {isMyRequest && (
-                            <div class="pt-2 border-t border-blue-500/15 space-y-2">
-                              <p class="text-blue-200/40 text-xs uppercase tracking-widest font-bold">
-                                Enviar respuesta al equipo
-                              </p>
-                              <div class="flex gap-2">
-                                <form
-                                  action="/api/assistance/respond"
-                                  method="post"
-                                >
-                                  <input
-                                    type="hidden"
-                                    name="request_id"
-                                    value={r.id}
-                                  />
-                                  <input
-                                    type="hidden"
-                                    name="response"
-                                    value="En camino 🚶"
-                                  />
-                                  <button
-                                    type="submit"
-                                    class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
-                                  >
-                                    🚶 En camino
-                                  </button>
-                                </form>
-                              </div>
+                            <div class="flex gap-2">
                               <form
-                                action="/api/assistance/respond"
+                                action="/api/assistance/status"
                                 method="post"
-                                class="flex gap-2"
                               >
                                 <input
                                   type="hidden"
@@ -436,68 +484,198 @@ function timeAgo(dateStr: string) {
                                   value={r.id}
                                 />
                                 <input
-                                  type="text"
-                                  name="response"
-                                  placeholder="Mensaje personalizado…"
-                                  required
-                                  class="flex-1 px-3 py-2 bg-black/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-100/30 focus:outline-none focus:border-blue-400 transition-all text-sm"
+                                  type="hidden"
+                                  name="status"
+                                  value="unassign"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="origin"
+                                  value="needhelp"
                                 />
                                 <button
                                   type="submit"
-                                  class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                                  class="px-4 py-2 bg-black/40 hover:bg-amber-900/30 border border-amber-400/20 hover:border-amber-400/50 text-amber-200/60 hover:text-amber-200 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
                                 >
-                                  Enviar
+                                  Desasignarme
+                                </button>
+                              </form>
+                              <form
+                                action="/api/assistance/status"
+                                method="post"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="request_id"
+                                  value={r.id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="status"
+                                  value="done"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="origin"
+                                  value="needhelp"
+                                />
+                                <button
+                                  type="submit"
+                                  class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                                >
+                                  ✓ Resuelto
                                 </button>
                               </form>
                             </div>
                           )}
                         </div>
+                        <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div class="md:col-span-1 space-y-2">
+                            <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold">
+                              Proyecto
+                            </p>
+                            <p class="text-amber-200 font-black text-base uppercase tracking-wide">
+                              {r.projects?.name ?? "—"}
+                            </p>
+                            {r.projects?.challenges && (
+                              <p class="text-amber-300/70 text-xs flex items-center gap-1">
+                                <span>🏆</span> {r.projects.challenges.title}
+                              </p>
+                            )}
+                            {r.projects?.sede && (
+                              <p class="text-amber-100/40 text-xs flex items-center gap-1">
+                                <span>📍</span> {r.projects.sede}
+                              </p>
+                            )}
+                            <div class="flex flex-wrap gap-1.5 pt-1">
+                              {r.projects?.project_member?.map((m: any) => (
+                                <span class="px-2 py-0.5 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/60">
+                                  {m.profiles?.name ?? "Hacker"}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div class="md:col-span-2 space-y-3">
+                            <div>
+                              <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                                Solicitud
+                              </p>
+                              <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
+                                {r.request}
+                              </p>
+                            </div>
+                            {/* Respuesta del mentor visible para todos */}
+                            {r.mentor_response && (
+                              <div class="px-4 py-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
+                                  💬 Respuesta
+                                </p>
+                                <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
+                                  {r.mentor_response}
+                                </p>
+                              </div>
+                            )}
+                            {/* Formulario de respuesta: solo para el mentor asignado */}
+                            {isMyRequest && (
+                              <div class="pt-2 border-t border-blue-500/15 space-y-2">
+                                <p class="text-blue-200/40 text-xs uppercase tracking-widest font-bold">
+                                  Enviar respuesta al equipo
+                                </p>
+                                <div class="flex gap-2">
+                                  <form
+                                    action="/api/assistance/respond"
+                                    method="post"
+                                  >
+                                    <input
+                                      type="hidden"
+                                      name="request_id"
+                                      value={r.id}
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="response"
+                                      value="En camino 🚶"
+                                    />
+                                    <button
+                                      type="submit"
+                                      class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                                    >
+                                      🚶 En camino
+                                    </button>
+                                  </form>
+                                </div>
+                                <form
+                                  action="/api/assistance/respond"
+                                  method="post"
+                                  class="flex gap-2"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="request_id"
+                                    value={r.id}
+                                  />
+                                  <input
+                                    type="text"
+                                    name="response"
+                                    placeholder="Mensaje personalizado…"
+                                    required
+                                    class="flex-1 px-3 py-2 bg-black/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-100/30 focus:outline-none focus:border-blue-400 transition-all text-sm"
+                                  />
+                                  <button
+                                    type="submit"
+                                    class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                                  >
+                                    Enviar
+                                  </button>
+                                </form>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          }
-        </section>
-
-        {/* ── Historial reciente ── */}
-        {
-          (resolvedRequests ?? []).length > 0 && (
-            <section>
-              <h2 class="text-amber-100/20 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-amber-100/20 inline-block" />
-                Historial reciente
-              </h2>
-              <div class="space-y-2">
-                {(resolvedRequests ?? []).map((r: any) => (
-                  <div class="bg-black/20 rounded-xl border border-amber-400/8 px-5 py-3 flex flex-wrap items-center gap-3 opacity-50">
-                    <span
-                      class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${r.status === "done" ? "bg-green-900/30 border border-green-500/30 text-green-400" : "bg-red-900/20 border border-red-500/20 text-red-400"}`}
-                    >
-                      {r.status === "done" ? "Resuelto" : "Cancelado"}
-                    </span>
-                    <span class="text-amber-200/50 font-bold text-sm">
-                      {r.projects?.name ?? "—"}
-                    </span>
-                    <span class="text-amber-100/30 text-xs">
-                      {new Date(r.created_at).toLocaleString("es-ES", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    <span class="text-amber-100/20 text-xs truncate max-w-xs">
-                      {r.request}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
-          )
-        }
-      </div>
+
+            {/* ── Historial reciente ── */}
+            {(resolvedRequests ?? []).length > 0 && (
+              <section>
+                <h2 class="text-amber-100/20 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full bg-amber-100/20 inline-block" />
+                  Historial reciente
+                </h2>
+                <div class="space-y-2">
+                  {(resolvedRequests ?? []).map((r: any) => (
+                    <div class="bg-black/20 rounded-xl border border-amber-400/8 px-5 py-3 flex flex-wrap items-center gap-3 opacity-50">
+                      <span
+                        class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${r.status === "done" ? "bg-green-900/30 border border-green-500/30 text-green-400" : "bg-red-900/20 border border-red-500/20 text-red-400"}`}
+                      >
+                        {r.status === "done" ? "Resuelto" : "Cancelado"}
+                      </span>
+                      <span class="text-amber-200/50 font-bold text-sm">
+                        {r.projects?.name ?? "—"}
+                      </span>
+                      <span class="text-amber-100/30 text-xs">
+                        {new Date(r.created_at).toLocaleString("es-ES", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span class="text-amber-100/20 text-xs truncate max-w-xs">
+                        {r.request}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )
+      }
     </div>
     <Footer />
   </main>

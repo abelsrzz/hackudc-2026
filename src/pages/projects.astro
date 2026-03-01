@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
+import UpvoteButton from "../components/UpvoteButton.astro";
 
 // Auth
 const accessToken = Astro.cookies.get("sb-access-token");
@@ -79,6 +80,23 @@ const userProject = userProjectId
   ? projects?.find((p: any) => p.id === userProjectId)
   : null;
 
+// Upvotes de proyectos
+const projectIds = (projects ?? []).map((p: any) => String(p.id));
+const { data: projectUpvotesRaw } = projectIds.length
+  ? await supabaseAdmin
+      .from("upvotes")
+      .select("entity_id, user_id")
+      .eq("entity_type", "project")
+      .in("entity_id", projectIds)
+  : { data: [] };
+
+const projectUpvoteCount: Record<string, number> = {};
+const userProjectVotes = new Set<string>();
+for (const v of projectUpvotesRaw ?? []) {
+  projectUpvoteCount[v.entity_id] = (projectUpvoteCount[v.entity_id] ?? 0) + 1;
+  if (v.user_id === user.id) userProjectVotes.add(v.entity_id);
+}
+
 // Solicitud de ayuda activa del proyecto del usuario
 let activeRequest: any = null;
 if (userProjectId) {
@@ -153,124 +171,57 @@ if (userProjectId) {
         )
       }
 
-      <!-- Acceso restringido -->
-      {
-        !isHacker && (
-          <div class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 text-center">
-            <p class="text-amber-200/70 text-lg">
-              Solo los participantes con rol{" "}
-              <span class="text-amber-300 font-bold">Hacker</span> pueden
-              registrar proyectos.
-            </p>
-          </div>
-        )
-      }
-
-      {
-        isHacker && (
-          <div class="w-full max-w-4xl space-y-8">
-            {/* ── Tu proyecto ── */}
-            {userProject ? (
-              <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/40 shadow-[0_0_30px_rgba(251,191,36,0.12)] overflow-hidden">
-                <div class="px-6 py-4 border-b border-amber-400/20 flex items-center gap-3">
-                  <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
-                    ★ Tu Proyecto
-                  </span>
-                </div>
-                <div class="px-6 py-5">
-                  <h2 class="text-2xl font-black uppercase tracking-wider text-amber-200 mb-4">
-                    {(userProject as any).name}
-                  </h2>
-
-                  {/* Miembros actuales */}
-                  <div class="mb-5">
-                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
-                      Miembros ({(userProject as any).project_member.length}/4)
-                    </p>
-                    <div class="flex flex-wrap gap-2">
-                      {(userProject as any).project_member.map((m: any) => (
-                        <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-400/10 border border-amber-400/20 rounded-full">
-                          <span class="w-5 h-5 rounded-full bg-amber-400/30 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
-                            {m.profiles?.name
-                              ? m.profiles.name.charAt(0).toUpperCase()
-                              : "?"}
-                          </span>
-                          <span class="text-amber-100 text-sm font-medium">
-                            {m.profiles?.name ?? "Hacker"}
-                            {m.member_id === user.id && (
-                              <span class="ml-1 text-amber-400/60 text-xs">
-                                (tú)
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+      <div class="w-full max-w-4xl space-y-8">
+        {
+          isHacker && (
+            <div>
+              {/* ── Tu proyecto ── */}
+              {userProject ? (
+                <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/40 shadow-[0_0_30px_rgba(251,191,36,0.12)] overflow-hidden">
+                  <div class="px-6 py-4 border-b border-amber-400/20 flex items-center gap-3">
+                    <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                      ★ Tu Proyecto
+                    </span>
                   </div>
+                  <div class="px-6 py-5">
+                    <h2 class="text-2xl font-black uppercase tracking-wider text-amber-200 mb-4">
+                      {(userProject as any).name}
+                    </h2>
 
-                  {/* Sede */}
-                  <div class="mb-5 pt-5 border-t border-amber-400/15">
-                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
-                      Aula / Sede
-                    </p>
-                    <form
-                      action="/api/projects/set-sede"
-                      method="post"
-                      class="flex flex-col sm:flex-row gap-3"
-                    >
-                      <input
-                        type="hidden"
-                        name="project_id"
-                        value={(userProject as any).id}
-                      />
-                      <input
-                        type="text"
-                        name="sede"
-                        placeholder="Ej: Aula B1, Sala 204…"
-                        value={(userProject as any).sede ?? ""}
-                        maxlength={80}
-                        class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
-                      />
-                      <button
-                        type="submit"
-                        class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-                      >
-                        {(userProject as any).sede ? "Actualizar" : "Guardar"}
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Challenge vinculado */}
-                  <div class="mb-5 pt-5 border-t border-amber-400/15">
-                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
-                      Challenge
-                    </p>
-                    {(userProject as any).challenges ? (
-                      <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <span class="flex-1 px-4 py-2.5 bg-amber-400/10 border border-amber-400/30 rounded-lg text-amber-200 text-sm font-medium">
-                          🏆 {(userProject as any).challenges.title}
-                        </span>
-                        <form
-                          action="/api/projects/set-challenge"
-                          method="post"
-                        >
-                          <input
-                            type="hidden"
-                            name="project_id"
-                            value={(userProject as any).id}
-                          />
-                          <input type="hidden" name="challenge_id" value="" />
-                          <button
-                            type="submit"
-                            class="px-4 py-2.5 bg-black/40 hover:bg-red-900/30 border border-amber-400/20 hover:border-red-500/40 text-amber-200/50 hover:text-red-300 rounded-lg transition-all duration-300 text-xs font-bold uppercase tracking-widest whitespace-nowrap"
-                          >
-                            Desvincular
-                          </button>
-                        </form>
+                    {/* Miembros actuales */}
+                    <div class="mb-5">
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                        Miembros ({(userProject as any).project_member.length}
+                        /4)
+                      </p>
+                      <div class="flex flex-wrap gap-2">
+                        {(userProject as any).project_member.map((m: any) => (
+                          <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-400/10 border border-amber-400/20 rounded-full">
+                            <span class="w-5 h-5 rounded-full bg-amber-400/30 border border-amber-400/50 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                              {m.profiles?.name
+                                ? m.profiles.name.charAt(0).toUpperCase()
+                                : "?"}
+                            </span>
+                            <span class="text-amber-100 text-sm font-medium">
+                              {m.profiles?.name ?? "Hacker"}
+                              {m.member_id === user.id && (
+                                <span class="ml-1 text-amber-400/60 text-xs">
+                                  (tú)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ) : (
+                    </div>
+
+                    {/* Sede */}
+                    <div class="mb-5 pt-5 border-t border-amber-400/15">
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                        Aula / Sede
+                      </p>
                       <form
-                        action="/api/projects/set-challenge"
+                        action="/api/projects/set-sede"
                         method="post"
                         class="flex flex-col sm:flex-row gap-3"
                       >
@@ -279,296 +230,367 @@ if (userProjectId) {
                           name="project_id"
                           value={(userProject as any).id}
                         />
-                        <select
-                          name="challenge_id"
-                          required
-                          class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all text-sm appearance-none cursor-pointer"
-                        >
-                          <option
-                            value=""
-                            disabled
-                            selected
-                            class="text-amber-100/30"
-                          >
-                            Selecciona un challenge…
-                          </option>
-                          {challenges?.map((c: any) => (
-                            <option
-                              value={c.id}
-                              class="bg-[#0a0011] text-amber-100"
-                            >
-                              {c.title}
-                            </option>
-                          ))}
-                        </select>
+                        <input
+                          type="text"
+                          name="sede"
+                          placeholder="Ej: Aula B1, Sala 204…"
+                          value={(userProject as any).sede ?? ""}
+                          maxlength={80}
+                          class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+                        />
                         <button
                           type="submit"
                           class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
                         >
-                          Vincular
+                          {(userProject as any).sede ? "Actualizar" : "Guardar"}
                         </button>
                       </form>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Formulario para añadir miembro */}
-                  {(userProject as any).project_member.length < 4 ? (
-                    <form
-                      action="/api/projects/add-member"
-                      method="post"
-                      class="flex flex-col sm:flex-row gap-3 mt-2 pt-5 border-t border-amber-400/15"
-                    >
-                      <input
-                        type="hidden"
-                        name="project_id"
-                        value={(userProject as any).id}
-                      />
-                      <input
-                        type="email"
-                        name="member_email"
-                        placeholder="correo@del.nuevo.miembro"
-                        required
-                        class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
-                      />
-                      <button
-                        type="submit"
-                        class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-                      >
-                        + Añadir miembro
-                      </button>
-                    </form>
-                  ) : (
-                    <p class="text-amber-200/40 text-sm italic mt-2">
-                      El equipo ya está completo (4/4 miembros).
-                    </p>
-                  )}
-
-                  {/* ── Solicitar ayuda ── */}
-                  <div class="mt-2 pt-6 border-t border-amber-400/15">
-                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
-                      Solicitar ayuda a un mentor
-                    </p>
-
-                    {activeRequest ? (
-                      <div class="space-y-3">
-                        {/* Estado de la solicitud activa */}
-                        <div
-                          class={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${activeRequest.status === "assigned" ? "bg-blue-900/20 border-blue-500/30" : "bg-amber-400/5 border-amber-400/20"}`}
+                    {/* Challenge vinculado */}
+                    <div class="mb-5 pt-5 border-t border-amber-400/15">
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                        Challenge
+                      </p>
+                      {(userProject as any).challenges ? (
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <span class="flex-1 px-4 py-2.5 bg-amber-400/10 border border-amber-400/30 rounded-lg text-amber-200 text-sm font-medium">
+                            🏆 {(userProject as any).challenges.title}
+                          </span>
+                          <form
+                            action="/api/projects/set-challenge"
+                            method="post"
+                          >
+                            <input
+                              type="hidden"
+                              name="project_id"
+                              value={(userProject as any).id}
+                            />
+                            <input type="hidden" name="challenge_id" value="" />
+                            <button
+                              type="submit"
+                              class="px-4 py-2.5 bg-black/40 hover:bg-red-900/30 border border-amber-400/20 hover:border-red-500/40 text-amber-200/50 hover:text-red-300 rounded-lg transition-all duration-300 text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                            >
+                              Desvincular
+                            </button>
+                          </form>
+                        </div>
+                      ) : (
+                        <form
+                          action="/api/projects/set-challenge"
+                          method="post"
+                          class="flex flex-col sm:flex-row gap-3"
                         >
-                          <div class="flex flex-wrap items-center gap-3">
-                            <span
-                              class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${activeRequest.status === "assigned" ? "bg-blue-400/20 border border-blue-400/40 text-blue-300" : "bg-amber-400/15 border border-amber-400/30 text-amber-300"}`}
+                          <input
+                            type="hidden"
+                            name="project_id"
+                            value={(userProject as any).id}
+                          />
+                          <select
+                            name="challenge_id"
+                            required
+                            class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all text-sm appearance-none cursor-pointer"
+                          >
+                            <option
+                              value=""
+                              disabled
+                              selected
+                              class="text-amber-100/30"
                             >
-                              {activeRequest.status === "assigned"
-                                ? "🧑‍💻 Mentor en camino"
-                                : "⏳ Pendiente"}
-                            </span>
-                            {activeRequest.status === "assigned" && (
-                              <span class="text-blue-200/70 text-xs font-medium">
-                                {(activeRequest.mentor_profile as any)?.name ??
-                                  "Un mentor"}
-                              </span>
-                            )}
-                            <span class="text-amber-100/30 text-xs">
-                              {new Date(
-                                activeRequest.created_at,
-                              ).toLocaleString("es-ES", {
-                                day: "2-digit",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                          <p class="text-amber-100/70 text-sm bg-black/20 rounded px-3 py-2 whitespace-pre-wrap break-words">
-                            {activeRequest.request}
-                          </p>
-                          {activeRequest.mentor_response && (
-                            <div class="mt-2 px-3 py-2 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                              <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
-                                💬 Respuesta del mentor
-                              </p>
-                              <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
-                                {activeRequest.mentor_response}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        {/* Acciones del hacker */}
-                        <div class="flex gap-2">
-                          <form action="/api/assistance/status" method="post">
-                            <input
-                              type="hidden"
-                              name="request_id"
-                              value={activeRequest.id}
-                            />
-                            <input type="hidden" name="status" value="done" />
-                            <input
-                              type="hidden"
-                              name="origin"
-                              value="projects"
-                            />
-                            <button
-                              type="submit"
-                              class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
-                            >
-                              ✓ Problema resuelto
-                            </button>
-                          </form>
-                          <form action="/api/assistance/status" method="post">
-                            <input
-                              type="hidden"
-                              name="request_id"
-                              value={activeRequest.id}
-                            />
-                            <input type="hidden" name="status" value="cancel" />
-                            <input
-                              type="hidden"
-                              name="origin"
-                              value="projects"
-                            />
-                            <button
-                              type="submit"
-                              class="px-4 py-2 bg-black/40 hover:bg-red-900/30 border border-amber-400/15 hover:border-red-500/40 text-amber-200/40 hover:text-red-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
-                            >
-                              Cancelar
-                            </button>
-                          </form>
-                        </div>
-                      </div>
-                    ) : (
+                              Selecciona un challenge…
+                            </option>
+                            {challenges?.map((c: any) => (
+                              <option
+                                value={c.id}
+                                class="bg-[#0a0011] text-amber-100"
+                              >
+                                {c.title}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="submit"
+                            class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                          >
+                            Vincular
+                          </button>
+                        </form>
+                      )}
+                    </div>
+
+                    {/* Formulario para añadir miembro */}
+                    {(userProject as any).project_member.length < 4 ? (
                       <form
-                        action="/api/assistance/create"
+                        action="/api/projects/add-member"
                         method="post"
-                        class="flex flex-col gap-3"
+                        class="flex flex-col sm:flex-row gap-3 mt-2 pt-5 border-t border-amber-400/15"
                       >
-                        <textarea
-                          name="request"
-                          placeholder="Describe tu duda o problema…"
+                        <input
+                          type="hidden"
+                          name="project_id"
+                          value={(userProject as any).id}
+                        />
+                        <input
+                          type="email"
+                          name="member_email"
+                          placeholder="correo@del.nuevo.miembro"
                           required
-                          rows={3}
-                          class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+                          class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
                         />
                         <button
                           type="submit"
-                          class="self-start px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                          class="px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
                         >
-                          🙋 Pedir ayuda
+                          + Añadir miembro
                         </button>
                       </form>
+                    ) : (
+                      <p class="text-amber-200/40 text-sm italic mt-2">
+                        El equipo ya está completo (4/4 miembros).
+                      </p>
                     )}
-                  </div>
-                </div>
-              </section>
-            ) : (
-              /* ── Crear proyecto ── */
-              <section class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
-                <div class="px-6 py-4 border-b border-amber-400/20">
-                  <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
-                    + Registrar nuevo proyecto
-                  </span>
-                </div>
-                <form
-                  action="/api/projects/create"
-                  method="post"
-                  class="px-6 py-5 flex flex-col sm:flex-row gap-3"
-                >
-                  <input
-                    type="text"
-                    name="name"
-                    placeholder="Nombre del proyecto"
-                    required
-                    maxlength={80}
-                    class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
-                  />
-                  <button
-                    type="submit"
-                    class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
-                  >
-                    Crear proyecto
-                  </button>
-                </form>
-              </section>
-            )}
 
-            {/* ── Lista de todos los proyectos ── */}
-            <section>
-              <h2 class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4">
-                Todos los proyectos ({projects?.length ?? 0})
-              </h2>
+                    {/* ── Solicitar ayuda ── */}
+                    <div class="mt-2 pt-6 border-t border-amber-400/15">
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                        Solicitar ayuda a un mentor
+                      </p>
 
-              {projects && projects.length > 0 ? (
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {projects.map((project: any) => {
-                    const isMyProject = project.id === userProjectId;
-                    return (
-                      <div
-                        class={`bg-black/40 backdrop-blur-sm p-5 rounded-xl border transition-all duration-300 ${isMyProject ? "border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.15)]" : "border-amber-400/15 hover:border-amber-400/30"}`}
-                      >
-                        <div class="flex items-start justify-between gap-2 mb-3">
-                          <h3 class="text-amber-200 font-black uppercase tracking-wider text-sm">
-                            {project.name}
-                          </h3>
-                          {isMyProject && (
-                            <span class="shrink-0 text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold">
-                              Tu equipo
-                            </span>
-                          )}
-                        </div>
-                        {(project as any).challenges && (
-                          <p class="text-amber-300/70 text-xs mb-2 flex items-center gap-1.5">
-                            <span>🏆</span>
-                            <span class="truncate">
-                              {(project as any).challenges.title}
-                            </span>
-                          </p>
-                        )}
-                        {(project as any).sede && (
-                          <p class="text-amber-100/40 text-xs mb-3 flex items-center gap-1.5">
-                            <span>📍</span>
-                            <span class="truncate">
-                              {(project as any).sede}
-                            </span>
-                          </p>
-                        )}
-
-                        <div class="flex flex-wrap gap-1.5">
-                          {project.project_member.map((m: any) => (
-                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/70 font-medium">
-                              <span class="w-4 h-4 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
-                                {m.profiles?.name
-                                  ? m.profiles.name.charAt(0).toUpperCase()
-                                  : "?"}
+                      {activeRequest ? (
+                        <div class="space-y-3">
+                          {/* Estado de la solicitud activa */}
+                          <div
+                            class={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${activeRequest.status === "assigned" ? "bg-blue-900/20 border-blue-500/30" : "bg-amber-400/5 border-amber-400/20"}`}
+                          >
+                            <div class="flex flex-wrap items-center gap-3">
+                              <span
+                                class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${activeRequest.status === "assigned" ? "bg-blue-400/20 border border-blue-400/40 text-blue-300" : "bg-amber-400/15 border border-amber-400/30 text-amber-300"}`}
+                              >
+                                {activeRequest.status === "assigned"
+                                  ? "🧑‍💻 Mentor en camino"
+                                  : "⏳ Pendiente"}
                               </span>
-                              {m.profiles?.name ?? "Hacker"}
-                            </span>
-                          ))}
-                          {/* Slots vacíos */}
-                          {Array.from({
-                            length: 4 - project.project_member.length,
-                          }).map(() => (
-                            <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/20 border border-amber-400/10 rounded-full text-xs text-amber-100/20 font-medium italic">
-                              libre
-                            </span>
-                          ))}
+                              {activeRequest.status === "assigned" && (
+                                <span class="text-blue-200/70 text-xs font-medium">
+                                  {(activeRequest.mentor_profile as any)
+                                    ?.name ?? "Un mentor"}
+                                </span>
+                              )}
+                              <span class="text-amber-100/30 text-xs">
+                                {new Date(
+                                  activeRequest.created_at,
+                                ).toLocaleString("es-ES", {
+                                  day: "2-digit",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p class="text-amber-100/70 text-sm bg-black/20 rounded px-3 py-2 whitespace-pre-wrap break-words">
+                              {activeRequest.request}
+                            </p>
+                            {activeRequest.mentor_response && (
+                              <div class="mt-2 px-3 py-2 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
+                                  💬 Respuesta del mentor
+                                </p>
+                                <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
+                                  {activeRequest.mentor_response}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          {/* Acciones del hacker */}
+                          <div class="flex gap-2">
+                            <form action="/api/assistance/status" method="post">
+                              <input
+                                type="hidden"
+                                name="request_id"
+                                value={activeRequest.id}
+                              />
+                              <input type="hidden" name="status" value="done" />
+                              <input
+                                type="hidden"
+                                name="origin"
+                                value="projects"
+                              />
+                              <button
+                                type="submit"
+                                class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                              >
+                                ✓ Problema resuelto
+                              </button>
+                            </form>
+                            <form action="/api/assistance/status" method="post">
+                              <input
+                                type="hidden"
+                                name="request_id"
+                                value={activeRequest.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="status"
+                                value="cancel"
+                              />
+                              <input
+                                type="hidden"
+                                name="origin"
+                                value="projects"
+                              />
+                              <button
+                                type="submit"
+                                class="px-4 py-2 bg-black/40 hover:bg-red-900/30 border border-amber-400/15 hover:border-red-500/40 text-amber-200/40 hover:text-red-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                              >
+                                Cancelar
+                              </button>
+                            </form>
+                          </div>
                         </div>
+                      ) : (
+                        <form
+                          action="/api/assistance/create"
+                          method="post"
+                          class="flex flex-col gap-3"
+                        >
+                          <textarea
+                            name="request"
+                            placeholder="Describe tu duda o problema…"
+                            required
+                            rows={3}
+                            class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+                          />
+                          <button
+                            type="submit"
+                            class="self-start px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            🙋 Pedir ayuda
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              ) : (
+                /* ── Crear proyecto ── */
+                <section class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
+                  <div class="px-6 py-4 border-b border-amber-400/20">
+                    <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                      + Registrar nuevo proyecto
+                    </span>
+                  </div>
+                  <form
+                    action="/api/projects/create"
+                    method="post"
+                    class="px-6 py-5 flex flex-col sm:flex-row gap-3"
+                  >
+                    <input
+                      type="text"
+                      name="name"
+                      placeholder="Nombre del proyecto"
+                      required
+                      maxlength={80}
+                      class="flex-1 px-4 py-2.5 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+                    />
+                    <button
+                      type="submit"
+                      class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
+                    >
+                      Crear proyecto
+                    </button>
+                  </form>
+                </section>
+              )}
+            </div>
+          )
+        }
 
-                        <p class="text-amber-100/25 text-xs mt-3">
+        {/* ── Lista de todos los proyectos ── */}
+        <section>
+          <h2
+            class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4"
+          >
+            Todos los proyectos ({projects?.length ?? 0})
+          </h2>
+
+          {
+            projects && projects.length > 0 ? (
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {projects.map((project: any) => {
+                  const isMyProject = project.id === userProjectId;
+                  return (
+                    <div
+                      class={`bg-black/40 backdrop-blur-sm p-5 rounded-xl border transition-all duration-300 ${isMyProject ? "border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.15)]" : "border-amber-400/15 hover:border-amber-400/30"}`}
+                    >
+                      <div class="flex items-start justify-between gap-2 mb-3">
+                        <h3 class="text-amber-200 font-black uppercase tracking-wider text-sm">
+                          {project.name}
+                        </h3>
+                        {isMyProject && (
+                          <span class="shrink-0 text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold">
+                            Tu equipo
+                          </span>
+                        )}
+                      </div>
+                      {(project as any).challenges && (
+                        <p class="text-amber-300/70 text-xs mb-2 flex items-center gap-1.5">
+                          <span>🏆</span>
+                          <span class="truncate">
+                            {(project as any).challenges.title}
+                          </span>
+                        </p>
+                      )}
+                      {(project as any).sede && (
+                        <p class="text-amber-100/40 text-xs mb-3 flex items-center gap-1.5">
+                          <span>📍</span>
+                          <span class="truncate">{(project as any).sede}</span>
+                        </p>
+                      )}
+
+                      <div class="flex flex-wrap gap-1.5">
+                        {project.project_member.map((m: any) => (
+                          <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/70 font-medium">
+                            <span class="w-4 h-4 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
+                              {m.profiles?.name
+                                ? m.profiles.name.charAt(0).toUpperCase()
+                                : "?"}
+                            </span>
+                            {m.profiles?.name ?? "Hacker"}
+                          </span>
+                        ))}
+                        {/* Slots vacíos */}
+                        {Array.from({
+                          length: 4 - project.project_member.length,
+                        }).map(() => (
+                          <span class="flex items-center gap-1.5 px-2.5 py-1 bg-black/20 border border-amber-400/10 rounded-full text-xs text-amber-100/20 font-medium italic">
+                            libre
+                          </span>
+                        ))}
+                      </div>
+
+                      <div class="flex items-center justify-between mt-3">
+                        <p class="text-amber-100/25 text-xs">
                           {project.project_member.length}/4 miembros
                         </p>
+                        <UpvoteButton
+                          entityType="project"
+                          entityId={String(project.id)}
+                          count={projectUpvoteCount[String(project.id)] ?? 0}
+                          voted={userProjectVotes.has(String(project.id))}
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div class="text-center py-12 text-amber-100/30 text-sm italic">
-                  Aún no hay proyectos registrados. ¡Sé el primero!
-                </div>
-              )}
-            </section>
-          </div>
-        )
-      }
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div class="text-center py-12 text-amber-100/30 text-sm italic">
+                Aún no hay proyectos registrados. ¡Sé el primero!
+              </div>
+            )
+          }
+        </section>
+      </div>
     </div>
 
     <Footer />

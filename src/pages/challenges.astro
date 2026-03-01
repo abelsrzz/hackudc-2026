@@ -2,27 +2,17 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
+import UpvoteButton from "../components/UpvoteButton.astro";
 
 const accessToken = Astro.cookies.get("sb-access-token");
-const refreshToken = Astro.cookies.get("sb-refresh-token");
+if (!accessToken) return Astro.redirect("/signin");
 
-if (!accessToken || !refreshToken) {
-  return Astro.redirect("/signin");
-}
-
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return Astro.redirect("/signin");
-  }
-} catch (error) {
-  return Astro.redirect("/signin");
-}
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return Astro.redirect("/signin");
 
 const user = session.data.user;
 
@@ -38,10 +28,28 @@ const { data: profile } = await supabase
   .single();
 
 // Obtener todos los challenges
-const { data: challenges, error } = await supabase
+const { data: challenges } = await supabaseAdmin
   .from("challenges")
   .select("id, title, short_description, reward")
   .order("title", { ascending: true });
+
+// Upvotes de challenges
+const challengeIds = (challenges ?? []).map((c: any) => String(c.id));
+const { data: challengeUpvotesRaw } = challengeIds.length
+  ? await supabaseAdmin
+      .from("upvotes")
+      .select("entity_id, user_id")
+      .eq("entity_type", "challenge")
+      .in("entity_id", challengeIds)
+  : { data: [] };
+
+const challengeUpvoteCount: Record<string, number> = {};
+const userChallengeVotes = new Set<string>();
+for (const v of challengeUpvotesRaw ?? []) {
+  challengeUpvoteCount[v.entity_id] =
+    (challengeUpvoteCount[v.entity_id] ?? 0) + 1;
+  if (v.user_id === user.id) userChallengeVotes.add(v.entity_id);
+}
 ---
 
 <Layout title="Challenges">
@@ -126,22 +134,32 @@ const { data: challenges, error } = await supabase
                     </div>
                   )}
 
-                  <div class="mt-4 flex items-center gap-2 text-amber-300/80 text-sm group-hover:text-amber-200 transition-colors">
-                    <span>Ver detalles</span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="h-4 w-4 group-hover:translate-x-1 transition-transform"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M9 5l7 7-7 7"
+                  <div class="mt-4 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2 text-amber-300/80 text-sm group-hover:text-amber-200 transition-colors">
+                      Ver detalles
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 group-hover:translate-x-1 transition-transform"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </span>
+                    <span onclick="event.preventDefault();event.stopPropagation();">
+                      <UpvoteButton
+                        entityType="challenge"
+                        entityId={String(challenge.id)}
+                        count={challengeUpvoteCount[String(challenge.id)] ?? 0}
+                        voted={userChallengeVotes.has(String(challenge.id))}
                       />
-                    </svg>
+                    </span>
                   </div>
                 </a>
               ))}

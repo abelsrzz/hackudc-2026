@@ -3,6 +3,7 @@ import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
+import UpvoteButton from "../components/UpvoteButton.astro";
 
 // Auth
 const accessToken = Astro.cookies.get("sb-access-token");
@@ -50,6 +51,23 @@ const photosWithUrls = (photos ?? []).map((p: any) => ({
   ...p,
   publicUrl: `${supabaseUrl}/storage/v1/object/public/photos/${p.storage_path}`,
 }));
+
+// Upvotes de fotos
+const photoIds = photosWithUrls.map((p: any) => String(p.id));
+const { data: photoUpvotesRaw } = photoIds.length
+  ? await supabaseAdmin
+      .from("upvotes")
+      .select("entity_id, user_id")
+      .eq("entity_type", "photo")
+      .in("entity_id", photoIds)
+  : { data: [] };
+
+const photoUpvoteCount: Record<string, number> = {};
+const userPhotoVotes = new Set<string>();
+for (const v of photoUpvotesRaw ?? []) {
+  photoUpvoteCount[v.entity_id] = (photoUpvoteCount[v.entity_id] ?? 0) + 1;
+  if (v.user_id === user.id) userPhotoVotes.add(v.entity_id);
+}
 ---
 
 <Layout title="Fotos — HackUDC">
@@ -131,7 +149,7 @@ const photosWithUrls = (photos ?? []).map((p: any) => ({
         <!-- Modal de subida -->
         <div
           id="upload-modal"
-          class="hidden fixed inset-0 z-50 flex items-center justify-center p-4"
+          class="hidden fixed inset-0 z-50 items-center justify-center p-4"
         >
           <!-- Overlay -->
           <div
@@ -313,7 +331,7 @@ const photosWithUrls = (photos ?? []).map((p: any) => ({
                       />
                     </a>
                     <div class="px-4 py-3 flex items-start justify-between gap-2">
-                      <div class="min-w-0">
+                      <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 mb-1">
                           <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
                             {authorName.charAt(0).toUpperCase()}
@@ -341,27 +359,35 @@ const photosWithUrls = (photos ?? []).map((p: any) => ({
                           })}
                         </p>
                       </div>
-                      {canDelete && (
-                        <form
-                          action="/api/photos/delete"
-                          method="post"
-                          onsubmit="return confirm('¿Eliminar esta foto?')"
-                          class="shrink-0"
-                        >
-                          <input
-                            type="hidden"
-                            name="photo_id"
-                            value={photo.id}
-                          />
-                          <button
-                            type="submit"
-                            title="Eliminar foto"
-                            class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/20 hover:bg-red-900/40 border border-transparent hover:border-red-500/40 text-amber-100/20 hover:text-red-400 transition-all text-sm"
+                      <!-- Acciones: upvote + borrar -->
+                      <div class="flex flex-col items-end gap-2 shrink-0">
+                        <UpvoteButton
+                          entityType="photo"
+                          entityId={String(photo.id)}
+                          count={photoUpvoteCount[String(photo.id)] ?? 0}
+                          voted={userPhotoVotes.has(String(photo.id))}
+                        />
+                        {canDelete && (
+                          <form
+                            action="/api/photos/delete"
+                            method="post"
+                            onsubmit="return confirm('¿Eliminar esta foto?')"
                           >
-                            🗑
-                          </button>
-                        </form>
-                      )}
+                            <input
+                              type="hidden"
+                              name="photo_id"
+                              value={photo.id}
+                            />
+                            <button
+                              type="submit"
+                              title="Eliminar foto"
+                              class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/20 hover:bg-red-900/40 border border-transparent hover:border-red-500/40 text-amber-100/20 hover:text-red-400 transition-all text-sm"
+                            >
+                              🗑
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -417,10 +443,12 @@ const photosWithUrls = (photos ?? []).map((p: any) => ({
   // ── Modal ──────────────────────────────────────────────
   function openModal() {
     modal?.classList.remove("hidden");
+    modal?.classList.add("flex");
     document.body.style.overflow = "hidden";
   }
 
   function closeModal() {
+    modal?.classList.remove("flex");
     modal?.classList.add("hidden");
     document.body.style.overflow = "";
     stopCamera();

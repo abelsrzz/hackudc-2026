@@ -1,0 +1,129 @@
+---
+interface Props {
+  entityType: string; // 'project' | 'challenge' | 'photo' | ...
+  entityId: string;
+  count: number;
+  voted: boolean;
+}
+
+const { entityType, entityId, count, voted } = Astro.props;
+---
+
+<button
+  class={`upvote-btn group flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold transition-all duration-200 select-none
+    ${
+      voted
+        ? "bg-amber-400/20 border-amber-400/50 text-amber-300 hover:bg-amber-400/10 hover:border-amber-400/30"
+        : "bg-black/30 border-amber-400/15 text-amber-100/40 hover:bg-amber-400/10 hover:border-amber-400/40 hover:text-amber-300"
+    }`}
+  data-entity-type={entityType}
+  data-entity-id={entityId}
+  data-voted={String(voted)}
+  aria-label={voted ? "Quitar voto" : "Votar"}
+  aria-pressed={voted}
+>
+  <svg
+    class={`w-3 h-3 transition-transform duration-200 group-hover:-translate-y-0.5 ${voted ? "text-amber-300" : "text-amber-100/40 group-hover:text-amber-300"}`}
+    viewBox="0 0 12 12"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M6 1L11 8H1L6 1Z"></path>
+  </svg>
+  <span class="upvote-count">{count}</span>
+</button>
+
+<script>
+  // Se ejecuta una sola vez (Astro hoist). Delega eventos al document para
+  // que funcione aunque se añadan botones dinámicamente.
+  if (!(window as any).__upvoteListenerAttached) {
+    (window as any).__upvoteListenerAttached = true;
+
+    document.addEventListener("click", async (e) => {
+      const btn = (e.target as Element).closest<HTMLButtonElement>(
+        ".upvote-btn",
+      );
+      if (!btn) return;
+
+      const entityType = btn.dataset.entityType!;
+      const entityId = btn.dataset.entityId!;
+      const wasVoted = btn.dataset.voted === "true";
+      const countEl = btn.querySelector<HTMLElement>(".upvote-count")!;
+
+      // Optimistic update
+      const prevCount = parseInt(countEl.textContent ?? "0", 10);
+      const newCount = wasVoted ? prevCount - 1 : prevCount + 1;
+      countEl.textContent = String(newCount);
+      btn.dataset.voted = String(!wasVoted);
+      btn.setAttribute("aria-pressed", String(!wasVoted));
+
+      const voted = !wasVoted;
+      btn.className = btn.className.replace(
+        /bg-\S+|border-\S+|text-amber-[^\s]+/g,
+        "",
+      );
+      applyVotedStyle(btn, voted);
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("/api/upvotes/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entity_type: entityType,
+            entity_id: entityId,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          countEl.textContent = String(data.count);
+          btn.dataset.voted = String(data.voted);
+          btn.setAttribute("aria-pressed", String(data.voted));
+          applyVotedStyle(btn, data.voted);
+        } else {
+          // Revert
+          countEl.textContent = String(prevCount);
+          btn.dataset.voted = String(wasVoted);
+          btn.setAttribute("aria-pressed", String(wasVoted));
+          applyVotedStyle(btn, wasVoted);
+        }
+      } catch {
+        // Revert on network error
+        countEl.textContent = String(prevCount);
+        btn.dataset.voted = String(wasVoted);
+        applyVotedStyle(btn, wasVoted);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function applyVotedStyle(btn: HTMLButtonElement, voted: boolean) {
+      // Reset relevant classes
+      btn.classList.remove(
+        "bg-amber-400/20",
+        "border-amber-400/50",
+        "text-amber-300",
+        "hover:bg-amber-400/10",
+        "hover:border-amber-400/30",
+        "bg-black/30",
+        "border-amber-400/15",
+        "text-amber-100/40",
+        "hover:border-amber-400/40",
+      );
+      if (voted) {
+        btn.classList.add(
+          "bg-amber-400/20",
+          "border-amber-400/50",
+          "text-amber-300",
+        );
+      } else {
+        btn.classList.add(
+          "bg-black/30",
+          "border-amber-400/15",
+          "text-amber-100/40",
+        );
+      }
+    }
+  }
+</script>

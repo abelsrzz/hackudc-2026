@@ -18,18 +18,21 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .eq("member_id", user.id)
     .maybeSingle();
 
+  const formData = await request.formData();
+  const origin = formData.get("origin")?.toString() ?? "projects";
+  const redirectBase = origin === "needhelp" ? "/needhelp" : "/projects";
+
   if (!membership) {
     return redirect(
-      "/projects?error=Debes+pertenecer+a+un+proyecto+para+solicitar+ayuda",
+      `${redirectBase}?error=Debes+pertenecer+a+un+proyecto+para+solicitar+ayuda`,
     );
   }
 
-  const formData = await request.formData();
   const requestText = formData.get("request")?.toString().trim();
 
   if (!requestText) {
     return redirect(
-      "/projects?error=Debes+escribir+tu+duda+antes+de+solicitar+ayuda",
+      `${redirectBase}?error=Debes+escribir+tu+duda+antes+de+solicitar+ayuda`,
     );
   }
 
@@ -42,7 +45,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .maybeSingle();
 
   if (existing) {
-    return redirect("/projects?error=Ya+tienes+una+solicitud+de+ayuda+activa");
+    return redirect(
+      `${redirectBase}?error=Ya+tienes+una+solicitud+de+ayuda+activa`,
+    );
   }
 
   const { error: insertError } = await supabaseAdmin
@@ -55,9 +60,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   if (insertError) {
     return redirect(
-      `/projects?error=${encodeURIComponent("Error al crear la solicitud: " + insertError.message)}`,
+      `${redirectBase}?error=${encodeURIComponent("Error al crear la solicitud: " + insertError.message)}`,
     );
   }
 
-  return redirect("/projects");
+  return redirect(redirectBase);
 };
