@@ -1,5 +1,5 @@
 ---
-import { supabaseAdmin } from "../lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 
 interface Props {
   channel: string;
@@ -7,44 +7,67 @@ interface Props {
 
 const { channel } = Astro.props;
 
+// Crear un cliente fresco por petición para evitar conflictos con el singleton
+const supabase = createClient(
+  import.meta.env.SUPABASE_URL,
+  import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  },
+);
+
 const accessToken = Astro.cookies.get("sb-access-token");
-if (!accessToken) return;
 
-const {
-  data: { user },
-  error: userError,
-} = await supabaseAdmin.auth.getUser(accessToken.value);
-if (userError || !user) return;
+let userId = "";
+let userName = "Usuario";
+let messages: any[] = [];
+let isAuthenticated = false;
 
-const { data: profile } = await supabaseAdmin
-  .from("profiles")
-  .select("name")
-  .eq("id", user.id)
-  .single();
+if (accessToken) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser(accessToken.value);
 
-const { data: initialMessages } = await supabaseAdmin
-  .from("messages")
-  .select(
-    `
-    id,
-    content,
-    created_at,
-    edited_at,
-    user_id,
-    reply_to,
-    profiles (
-      name
-    )
-  `,
-  )
-  .eq("channel", channel)
-  .order("created_at", { ascending: true });
+  if (!userError && user) {
+    isAuthenticated = true;
+    userId = user.id;
 
-const messages = initialMessages || [];
-const userId = user.id;
-const userName = profile?.name || "Usuario";
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name")
+      .eq("id", user.id)
+      .single();
+
+    userName = profile?.name || "Usuario";
+
+    const { data: initialMessages } = await supabase
+      .from("messages")
+      .select(
+        `
+        id,
+        content,
+        created_at,
+        edited_at,
+        user_id,
+        reply_to,
+        profiles (
+          name
+        )
+      `,
+      )
+      .eq("channel", channel)
+      .order("created_at", { ascending: true });
+
+    messages = initialMessages || [];
+  }
+}
 ---
 
+{isAuthenticated && (
 <div class="chat-component w-full">
   <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
     Chat — {channel}
@@ -180,6 +203,7 @@ const userName = profile?.name || "Usuario";
     </button>
   </div>
 </div>
+)}
 
 <script define:vars={{ userId, userName, channel }}>
   // Scope to this specific chat instance using the channel id
