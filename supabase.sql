@@ -121,3 +121,4 @@ CREATE TABLE public.upvotes (
   CONSTRAINT upvotes_pkey PRIMARY KEY (id),
   CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
+

@@ -23,6 +23,7 @@ const accessToken = Astro.cookies.get("sb-access-token");
 
 let userId = "";
 let userName = "Usuario";
+let userRole = "";
 let messages: any[] = [];
 let isAuthenticated = false;
 
@@ -38,11 +39,12 @@ if (accessToken) {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("name")
+      .select("name, role")
       .eq("id", user.id)
       .single();
 
     userName = profile?.name || "Usuario";
+    userRole = profile?.role || "";
 
     const { data: initialMessages } = await supabase
       .from("messages")
@@ -183,32 +185,51 @@ function roleBadge(role: string | undefined) {
                 ↳ Respondiendo a un mensaje anterior
               </div>
             )}
-            <div
-              class={`text-amber-100/90 text-sm leading-relaxed ${isOwn ? "mr-10 text-right" : "ml-10"}`}
-            >
-              {msg.content}
-            </div>
-            <div
-              class={`mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${
-                isOwn ? "mr-10 justify-end" : "ml-10"
-              }`}
-            >
-              <button
-                class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
-                data-reply-to={msg.id}
-              >
-                Responder
-              </button>
-              {isOwn && (
-                <button
-                  class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
-                  data-message-id={msg.id}
-                  data-content={msg.content}
-                >
-                  Editar
-                </button>
-              )}
-            </div>
+            {(() => {
+              const isDeleted = msg.content.startsWith("__DELETED__:");
+              const deletedBy = isDeleted ? msg.content.slice("__DELETED__:".length) : "";
+              return isDeleted ? (
+                <div class={`${isOwn ? "mr-10 text-right" : "ml-10"} text-amber-400/35 text-sm italic leading-relaxed select-none`}>
+                  🗑️ Mensaje borrado por {deletedBy}
+                </div>
+              ) : (
+                <div class={`text-amber-100/90 text-sm leading-relaxed ${isOwn ? "mr-10 text-right" : "ml-10"}`}>
+                  {msg.content}
+                </div>
+              );
+            })()}
+            {(() => {
+              const isDeleted = msg.content.startsWith("__DELETED__:");
+              const isMod = userRole?.toLowerCase() === "admin" || userRole?.toLowerCase() === "mentor";
+              if (isDeleted) return null;
+              return (
+                <div class={`mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity ${isOwn ? "mr-10 justify-end" : "ml-10"}`}>
+                  <button
+                    class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
+                    data-reply-to={msg.id}
+                  >
+                    Responder
+                  </button>
+                  {isOwn && (
+                    <button
+                      class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors"
+                      data-message-id={msg.id}
+                      data-content={msg.content}
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {(isOwn || isMod) && (
+                    <button
+                      class="delete-btn text-red-400/60 hover:text-red-400 text-xs font-semibold uppercase tracking-wide transition-colors"
+                      data-message-id={msg.id}
+                    >
+                      Borrar
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })
@@ -249,7 +270,7 @@ function roleBadge(role: string | undefined) {
 </div>
 )}
 
-<script define:vars={{ userId, userName, channel, supabaseUrl: import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL, supabaseKey: import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_KEY }}>
+<script define:vars={{ userId, userName, userRole, channel, supabaseUrl: import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL, supabaseKey: import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_KEY }}>
   // Scope to this specific chat instance using the channel id
   const chatBox = document.getElementById(`chat-box-${channel}`);
   const replyIndicator = document.getElementById(`reply-indicator-${channel}`);
@@ -263,6 +284,14 @@ function roleBadge(role: string | undefined) {
 
   let replyTo = null;
   let replyToText = null;
+  const isModerator = userRole?.toLowerCase() === "admin" || userRole?.toLowerCase() === "mentor";
+
+  function isDeletedContent(content) {
+    return typeof content === "string" && content.startsWith("__DELETED__:");
+  }
+  function deletedByName(content) {
+    return content.slice("__DELETED__:".length);
+  }
 
   function addMessageToDOM(msg) {
     // Remove empty state message if present
@@ -339,13 +368,20 @@ function roleBadge(role: string | undefined) {
       html += `<div class="${contentClass} mb-2 text-amber-400/60 text-xs italic">↳ Respondiendo a un mensaje anterior</div>`;
     }
 
-    html += `<div class="${contentClass} text-amber-100/90 text-sm leading-relaxed">${msg.content}</div>`;
-    html += `<div class="${actionsClass} mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">`;
-    html += `<button class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-reply-to="${msg.id}">Responder</button>`;
-    if (isOwn) {
-      html += `<button class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-message-id="${msg.id}" data-content="${msg.content.replace(/"/g, "&quot;")}">Editar</button>`;
+    if (isDeletedContent(msg.content)) {
+      html += `<div class="${contentClass} text-amber-400/35 text-sm italic leading-relaxed select-none">🗑️ Mensaje borrado por ${deletedByName(msg.content)}</div>`;
+    } else {
+      html += `<div class="${contentClass} text-amber-100/90 text-sm leading-relaxed">${msg.content}</div>`;
+      html += `<div class="${actionsClass} mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">`;
+      html += `<button class="reply-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-reply-to="${msg.id}">Responder</button>`;
+      if (isOwn) {
+        html += `<button class="edit-btn text-amber-400/70 hover:text-amber-300 text-xs font-semibold uppercase tracking-wide transition-colors" data-message-id="${msg.id}" data-content="${msg.content.replace(/"/g, "&quot;")}">Editar</button>`;
+      }
+      if (isOwn || isModerator) {
+        html += `<button class="delete-btn text-red-400/60 hover:text-red-400 text-xs font-semibold uppercase tracking-wide transition-colors" data-message-id="${msg.id}">Borrar</button>`;
+      }
+      html += `</div>`;
     }
-    html += `</div>`;
 
     messageDiv.innerHTML = html;
     chatBox?.appendChild(messageDiv);
@@ -355,11 +391,12 @@ function roleBadge(role: string | undefined) {
     messageDiv
       .querySelector(".reply-btn")
       ?.addEventListener("click", handleReplyClick);
-    if (msg.user_id === userId) {
-      messageDiv
-        .querySelector(".edit-btn")
-        ?.addEventListener("click", handleEditClick);
-    }
+    messageDiv
+      .querySelector(".edit-btn")
+      ?.addEventListener("click", handleEditClick);
+    messageDiv
+      .querySelector(".delete-btn")
+      ?.addEventListener("click", handleDeleteClick);
   }
 
   async function sendMessage() {
@@ -406,6 +443,26 @@ function roleBadge(role: string | undefined) {
     messageInput?.focus();
   }
 
+  async function handleDeleteClick(e) {
+    const btn = e.currentTarget;
+    const messageId = btn.dataset.messageId;
+    if (!confirm("¿Estás seguro de que quieres borrar este mensaje?")) return;
+
+    try {
+      const response = await fetch("/api/chat/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      if (!response.ok) {
+        alert("Error al borrar el mensaje.");
+      }
+      // El borrado se refleja en el DOM vía Realtime (DELETE o UPDATE)
+    } catch {
+      alert("Error de conexión.");
+    }
+  }
+
   async function handleEditClick(e) {
     const btn = e.currentTarget;
     const messageId = btn.dataset.messageId;
@@ -441,12 +498,15 @@ function roleBadge(role: string | undefined) {
     }
   }
 
-  // Attach handlers to existing reply/edit buttons
+  // Attach handlers to existing reply/edit/delete buttons
   chatRoot?.querySelectorAll(".reply-btn").forEach((btn) => {
     btn.addEventListener("click", handleReplyClick);
   });
   chatRoot?.querySelectorAll(".edit-btn").forEach((btn) => {
     btn.addEventListener("click", handleEditClick);
+  });
+  chatRoot?.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", handleDeleteClick);
   });
 
   cancelReplyBtn?.addEventListener("click", clearReply);
@@ -530,8 +590,20 @@ function roleBadge(role: string | undefined) {
           async (payload) => {
             const msgDiv = chatBoxEl.querySelector(
               `[data-message-id="${payload.new.id}"]`
-            );
-            if (msgDiv) {
+            ) as HTMLElement | null;
+            if (!msgDiv) return;
+
+            if (payload.new.content?.startsWith("__DELETED__:")) {
+              // Mensaje borrado por su propietario → reemplazar contenido
+              const deletedBy = payload.new.content.slice("__DELETED__:".length);
+              const contentEl = msgDiv.querySelector(".text-amber-100\\/90");
+              if (contentEl) {
+                contentEl.className = "ml-10 text-amber-400/35 text-sm italic leading-relaxed select-none";
+                contentEl.textContent = `🗑️ Mensaje borrado por ${deletedBy}`;
+              }
+              // Ocultar acciones
+              msgDiv.querySelectorAll(".reply-btn, .edit-btn, .delete-btn").forEach(b => (b as HTMLElement).style.display = "none");
+            } else {
               const contentEl = msgDiv.querySelector(".text-amber-100\\/90");
               if (contentEl) contentEl.textContent = payload.new.content;
 
@@ -544,10 +616,23 @@ function roleBadge(role: string | undefined) {
               }
 
               const editBtn = msgDiv.querySelector(".edit-btn") as HTMLElement;
-              if (editBtn) {
-                editBtn.dataset.content = payload.new.content;
-              }
+              if (editBtn) editBtn.dataset.content = payload.new.content;
             }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "DELETE",
+            schema: "public",
+            table: "messages",
+            filter: `channel=eq.${channelId}`,
+          },
+          (payload) => {
+            const msgDiv = chatBoxEl.querySelector(
+              `[data-message-id="${payload.old.id}"]`
+            );
+            if (msgDiv) msgDiv.remove();
           }
         )
         .subscribe();
