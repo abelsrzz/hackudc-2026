@@ -18,7 +18,7 @@ if (userError || !user) return Astro.redirect("/signin");
 // Solo mentores (y admins pueden ver también)
 const { data: profile } = await supabaseAdmin
   .from("profiles")
-  .select("role, name")
+  .select("role, name, avatar_url")
   .eq("id", user.id)
   .single();
 
@@ -175,11 +175,19 @@ function timeAgo(dateStr: string) {
           href="/profile"
           class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
         >
-          <span
-            class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
-          >
-            {user.email?.charAt(0).toUpperCase()}
-          </span>
+          {
+            profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt=""
+                class="w-6 h-6 rounded-full border border-amber-400 object-cover shrink-0"
+              />
+            ) : (
+              <span class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black">
+                {user.email?.charAt(0).toUpperCase()}
+              </span>
+            )
+          }
           Mi Perfil
         </a>
       </div>

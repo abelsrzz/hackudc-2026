@@ -59,6 +59,8 @@ CREATE TABLE public.profiles (
   institution text,
   degree text,
   year_of_study text,
+  instagram text,
+  avatar_url text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES public.sponsors(id)

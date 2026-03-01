@@ -17,7 +17,7 @@ if (userError || !user) return Astro.redirect("/signin");
 
 const { data: profile } = await supabaseAdmin
   .from("profiles")
-  .select("role, name")
+  .select("role, name, avatar_url")
   .eq("id", user.id)
   .single();
 
@@ -39,7 +39,8 @@ const { data: photos } = await supabaseAdmin
     user_id,
     profiles (
       id,
-      name
+      name,
+      avatar_url
     )
   `,
   )
@@ -100,11 +101,15 @@ for (const v of photoUpvotesRaw ?? []) {
           href="/profile"
           class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
         >
-          <span
-            class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
-          >
-            {user.email?.charAt(0).toUpperCase()}
-          </span>
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="" class="w-6 h-6 rounded-full border border-amber-400 object-cover shrink-0" />
+          ) : (
+            <span
+              class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+            >
+              {user.email?.charAt(0).toUpperCase()}
+            </span>
+          )}
           Mi Perfil
         </a>
       </div>
@@ -337,9 +342,13 @@ for (const v of photoUpvotesRaw ?? []) {
                             href={isOwner ? "/profile" : `/user/${photo.user_id}`}
                             class="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
                           >
-                            <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
-                              {authorName.charAt(0).toUpperCase()}
-                            </span>
+                            {(photo.profiles as any)?.avatar_url ? (
+                              <img src={(photo.profiles as any).avatar_url} alt="" class="w-5 h-5 rounded-full border border-amber-400/40 object-cover shrink-0" />
+                            ) : (
+                              <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-[10px] font-black shrink-0">
+                                {authorName.charAt(0).toUpperCase()}
+                              </span>
+                            )}
                             <span class="text-amber-200/80 text-xs font-bold truncate hover:underline">
                               {authorName}
                               {isOwner && (

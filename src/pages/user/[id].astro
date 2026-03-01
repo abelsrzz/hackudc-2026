@@ -20,11 +20,18 @@ if (!id) return Astro.redirect("/dashboard");
 // Own profile → redirect to /profile
 if (id === viewer.id) return Astro.redirect("/profile");
 
+// Fetch viewer's own profile (for header avatar)
+const { data: viewerProfile } = await supabaseAdmin
+  .from("profiles")
+  .select("name, avatar_url")
+  .eq("id", viewer.id)
+  .single();
+
 // Fetch the target profile
 const { data: profile, error: profileError } = await supabaseAdmin
   .from("profiles")
   .select(
-    "id, name, role, linkedin, github, twitter, website, institution, degree, year_of_study",
+    "id, name, role, linkedin, github, twitter, website, instagram, institution, degree, year_of_study, avatar_url",
   )
   .eq("id", id)
   .single();
@@ -66,7 +73,8 @@ const { data: membership } = await supabaseAdmin
         member_id,
         profiles (
           id,
-          name
+          name,
+          avatar_url
         )
       )
     )
@@ -107,22 +115,38 @@ const project = (membership?.projects as any) ?? null;
           href="/profile"
           class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all font-bold uppercase text-xs tracking-wider"
         >
-          <span
-            class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
-          >
-            {viewer.email?.charAt(0).toUpperCase()}
-          </span>
+          {
+            viewerProfile?.avatar_url ? (
+              <img
+                src={viewerProfile.avatar_url}
+                alt=""
+                class="w-5 h-5 rounded-full border border-amber-400 object-cover shrink-0"
+              />
+            ) : (
+              <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black">
+                {viewer.email?.charAt(0).toUpperCase()}
+              </span>
+            )
+          }
           Mi perfil
         </a>
       </div>
 
       <!-- Avatar + datos -->
       <div class="flex flex-col items-center mb-8">
-        <div
-          class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3"
-        >
-          {(profile.name ?? "?").charAt(0).toUpperCase()}
-        </div>
+        {
+          profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={profile.name ?? "Avatar"}
+              class="w-20 h-20 rounded-full border-2 border-amber-400 object-cover shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3"
+            />
+          ) : (
+            <div class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3">
+              {(profile.name ?? "?").charAt(0).toUpperCase()}
+            </div>
+          )
+        }
         <h1
           class="text-3xl sm:text-4xl font-black uppercase tracking-[0.15em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] text-center"
         >
@@ -150,6 +174,7 @@ const project = (membership?.projects as any) ?? null;
           (profile.github ||
             profile.linkedin ||
             profile.twitter ||
+            profile.instagram ||
             profile.website) && (
             <div class="flex flex-wrap gap-2 mt-4 justify-center">
               {profile.github && (
@@ -203,6 +228,24 @@ const project = (membership?.projects as any) ?? null;
                   {profile.twitter
                     .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
                     .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
+                </a>
+              )}
+              {profile.instagram && (
+                <a
+                  href={
+                    profile.instagram.startsWith("http")
+                      ? profile.instagram
+                      : `https://instagram.com/${profile.instagram}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  📸{" "}
+                  {profile.instagram.replace(
+                    /https?:\/\/(www\.)?instagram\.com\//,
+                    "",
+                  )}
                 </a>
               )}
               {profile.website && (
@@ -306,9 +349,17 @@ const project = (membership?.projects as any) ?? null;
                             : "bg-black/40 border-amber-400/15 text-amber-100/50 hover:border-amber-400/30 hover:text-amber-200"
                         }`}
                       >
-                        <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
-                          {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
-                        </span>
+                        {m.profiles?.avatar_url ? (
+                          <img
+                            src={m.profiles.avatar_url}
+                            alt=""
+                            class="w-5 h-5 rounded-full border border-amber-400/40 object-cover shrink-0"
+                          />
+                        ) : (
+                          <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                            {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
+                          </span>
+                        )}
                         {m.profiles?.name ?? "Sin nombre"}
                         {m.member_id === id && (
                           <span class="text-amber-400/60 text-[10px]">
@@ -349,6 +400,7 @@ const project = (membership?.projects as any) ?? null;
           !profile.github &&
             !profile.linkedin &&
             !profile.twitter &&
+            !profile.instagram &&
             !profile.website &&
             !profile.institution &&
             !profile.degree && (

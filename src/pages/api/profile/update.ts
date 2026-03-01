@@ -18,6 +18,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     linkedin: (form.get("linkedin") as string)?.trim() || null,
     github: (form.get("github") as string)?.trim() || null,
     twitter: (form.get("twitter") as string)?.trim() || null,
+    instagram: (form.get("instagram") as string)?.trim() || null,
     website: (form.get("website") as string)?.trim() || null,
     institution: (form.get("institution") as string)?.trim() || null,
     degree: (form.get("degree") as string)?.trim() || null,

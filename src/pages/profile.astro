@@ -17,7 +17,7 @@ if (userError || !user) return Astro.redirect("/signin");
 const { data: profile } = await supabaseAdmin
   .from("profiles")
   .select(
-    "id, name, role, linkedin, github, twitter, website, institution, degree, year_of_study",
+    "id, name, role, linkedin, github, twitter, website, instagram, institution, degree, year_of_study, avatar_url",
   )
   .eq("id", user.id)
   .single();
@@ -47,7 +47,8 @@ const { data: membership } = await supabaseAdmin
         member_id,
         profiles (
           id,
-          name
+          name,
+          avatar_url
         )
       )
     )
@@ -109,11 +110,50 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
 
       <!-- Avatar + título -->
       <div class="flex flex-col items-center mb-8">
-        <div
-          class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3"
+        <!-- Foto de perfil con botón de subida -->
+        <form
+          id="avatar-form"
+          action="/api/profile/upload-avatar"
+          method="post"
+          enctype="multipart/form-data"
+          class="mb-3"
         >
-          {user.email?.charAt(0).toUpperCase()}
-        </div>
+          <label
+            for="avatar-input"
+            class="relative w-20 h-20 rounded-full cursor-pointer group block"
+            title="Cambiar foto de perfil"
+          >
+            {
+              profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile?.name ?? "Avatar"}
+                  class="w-20 h-20 rounded-full border-2 border-amber-400 object-cover shadow-[0_0_20px_rgba(251,191,36,0.3)]"
+                />
+              ) : (
+                <div class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)]">
+                  {user.email?.charAt(0).toUpperCase()}
+                </div>
+              )
+            }
+            <div
+              class="absolute inset-0 rounded-full bg-black/65 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+            >
+              <span class="text-lg leading-none">📷</span>
+              <span
+                class="text-amber-300 text-[10px] font-bold uppercase tracking-widest mt-0.5"
+                >Cambiar</span
+              >
+            </div>
+          </label>
+          <input
+            id="avatar-input"
+            type="file"
+            name="avatar"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden"
+          />
+        </form>
         <h1
           class="text-3xl sm:text-4xl font-black uppercase tracking-[0.15em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00]"
         >
@@ -131,6 +171,7 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
           (profile?.github ||
             profile?.linkedin ||
             profile?.twitter ||
+            profile?.instagram ||
             profile?.website) && (
             <div class="flex flex-wrap gap-2 mt-3 justify-center">
               {profile?.github && (
@@ -184,6 +225,24 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                   {profile.twitter
                     .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
                     .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
+                </a>
+              )}
+              {profile?.instagram && (
+                <a
+                  href={
+                    profile.instagram.startsWith("http")
+                      ? profile.instagram
+                      : `https://instagram.com/${profile.instagram}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  📸{" "}
+                  {profile.instagram.replace(
+                    /https?:\/\/(www\.)?instagram\.com\//,
+                    "",
+                  )}
                 </a>
               )}
               {profile?.website && (
@@ -314,6 +373,22 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                       type="text"
                       name="twitter"
                       value={profile?.twitter ?? ""}
+                      placeholder="usuario o URL"
+                      class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span class="text-lg w-6 text-center shrink-0">📸</span>
+                  <div class="flex-1">
+                    <label class="block text-amber-200/35 text-xs mb-1"
+                      >Instagram</label
+                    >
+                    <input
+                      type="text"
+                      name="instagram"
+                      value={profile?.instagram ?? ""}
                       placeholder="usuario o URL"
                       class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
                     />
@@ -518,9 +593,17 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
                             : "bg-black/40 border-amber-400/15 text-amber-100/50 hover:border-amber-400/35 hover:text-amber-200"
                         }`}
                       >
-                        <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
-                          {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
-                        </span>
+                        {m.profiles?.avatar_url ? (
+                          <img
+                            src={m.profiles.avatar_url}
+                            alt=""
+                            class="w-5 h-5 rounded-full border border-amber-400/40 object-cover shrink-0"
+                          />
+                        ) : (
+                          <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                            {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
+                          </span>
+                        )}
                         {m.profiles?.name ?? "Sin nombre"}
                         {m.member_id === user.id && (
                           <span class="text-amber-400/60 text-[10px]">
@@ -573,3 +656,16 @@ const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctor
     <Footer />
   </main>
 </Layout>
+
+<script>
+  const avatarInput = document.getElementById(
+    "avatar-input",
+  ) as HTMLInputElement | null;
+  avatarInput?.addEventListener("change", () => {
+    if (avatarInput.files && avatarInput.files.length > 0) {
+      (
+        document.getElementById("avatar-form") as HTMLFormElement | null
+      )?.submit();
+    }
+  });
+</script>

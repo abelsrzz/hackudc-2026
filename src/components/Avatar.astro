@@ -1,0 +1,39 @@
+---
+interface Props {
+  name: string;
+  avatarUrl?: string | null;
+  sizeClass?: string;
+  textSize?: string;
+  borderClass?: string;
+  colorClass?: string;
+  extraClass?: string;
+}
+
+const {
+  name,
+  avatarUrl,
+  sizeClass = "w-6 h-6",
+  textSize = "text-xs",
+  borderClass = "border border-amber-400",
+  colorClass = "bg-amber-400/20 text-amber-300",
+  extraClass = "shrink-0",
+} = Astro.props;
+
+const initial = (name || "?").charAt(0).toUpperCase();
+---
+
+{
+  avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={name}
+      class={`${sizeClass} rounded-full ${borderClass} object-cover ${extraClass}`}
+    />
+  ) : (
+    <span
+      class={`${sizeClass} rounded-full ${borderClass} ${colorClass} flex items-center justify-center font-black ${textSize} ${extraClass}`}
+    >
+      {initial}
+    </span>
+  )
+}
