@@ -1,0 +1,558 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import Chat from "../components/Chat.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabaseAdmin } from "../lib/supabase";
+
+const accessToken = Astro.cookies.get("sb-access-token");
+if (!accessToken) return Astro.redirect("/signin");
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return Astro.redirect("/signin");
+
+const { data: profile } = await supabaseAdmin
+  .from("profiles")
+  .select("role, name")
+  .eq("id", user.id)
+  .single();
+
+const role = profile?.role?.toLowerCase();
+if (role !== "mentor" && role !== "admin") return Astro.redirect("/dashboard");
+
+const filterStatus = Astro.url.searchParams.get("status") || "all";
+const openTaskId = Astro.url.searchParams.get("open");
+
+// Fetch all tasks with subtasks and creator
+const { data: tasks } = await supabaseAdmin
+  .from("tasks")
+  .select(
+    `
+    id,
+    created_at,
+    updated_at,
+    title,
+    description,
+    status,
+    created_by,
+    creator:profiles!tasks_created_by_fkey (
+      id,
+      name
+    ),
+    subtasks (
+      id,
+      title,
+      done,
+      created_at
+    )
+  `,
+  )
+  .order("updated_at", { ascending: false });
+
+const allTasks = tasks ?? [];
+const filtered =
+  filterStatus === "all"
+    ? allTasks
+    : allTasks.filter((t: any) => t.status === filterStatus);
+
+const counts = {
+  all: allTasks.length,
+  pending: allTasks.filter((t: any) => t.status === "pending").length,
+  in_progress: allTasks.filter((t: any) => t.status === "in_progress").length,
+  done: allTasks.filter((t: any) => t.status === "done").length,
+  cancel: allTasks.filter((t: any) => t.status === "cancel").length,
+};
+
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    pending: "Pendiente",
+    in_progress: "En progreso",
+    done: "Completada",
+    cancel: "Cancelada",
+  };
+  return map[s] ?? s;
+}
+
+function statusColors(s: string) {
+  const map: Record<string, string> = {
+    pending: "bg-amber-400/20 border-amber-400/40 text-amber-300",
+    in_progress: "bg-blue-400/20 border-blue-400/40 text-blue-300",
+    done: "bg-green-400/20 border-green-400/40 text-green-300",
+    cancel: "bg-red-400/10 border-red-400/20 text-red-400/70",
+  };
+  return map[s] ?? "bg-amber-400/10 border-amber-400/20 text-amber-200";
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+---
+
+<Layout title="Tareas — HackUDC">
+  <main class="relative min-h-screen overflow-hidden">
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-12 pb-16 px-4"
+    >
+      <!-- Cabecera -->
+      <div class="w-full max-w-5xl flex items-center justify-between mb-10">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
+        >
+          ← Dashboard
+        </a>
+        <a
+          href="/profile"
+          class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
+        >
+          <span
+            class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+          >
+            {user.email?.charAt(0).toUpperCase()}
+          </span>
+          Mi Perfil
+        </a>
+      </div>
+
+      <!-- Título -->
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-3 text-center"
+      >
+        Tareas
+      </h1>
+      <p class="text-amber-100/50 mb-8 text-center text-sm tracking-wide">
+        Gestión de tareas del equipo de mentores
+      </p>
+
+      <div class="w-full max-w-5xl space-y-8">
+        <!-- ── Crear tarea ── -->
+        <section
+          class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 overflow-hidden"
+        >
+          <button
+            id="toggle-create"
+            type="button"
+            class="w-full px-6 py-4 flex items-center justify-between text-left"
+          >
+            <span
+              class="text-amber-300 font-black uppercase tracking-widest text-xs"
+              >+ Nueva tarea</span
+            >
+            <span
+              id="toggle-icon"
+              class="text-amber-400/60 text-lg font-bold transition-transform duration-200"
+              >▼</span
+            >
+          </button>
+          <div
+            id="create-form"
+            class="hidden px-6 pb-5 border-t border-amber-400/15"
+          >
+            <form
+              action="/api/tasks/create"
+              method="post"
+              class="flex flex-col gap-3 pt-5"
+            >
+              <input
+                type="text"
+                name="title"
+                placeholder="Título de la tarea…"
+                required
+                maxlength={120}
+                class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+              />
+              <textarea
+                name="description"
+                placeholder="Descripción (opcional)…"
+                rows={3}
+                class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+              ></textarea>
+              <div class="flex justify-end">
+                <button
+                  type="submit"
+                  class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Crear tarea
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- ── Filtros ── -->
+        <div class="flex flex-wrap gap-2">
+          {
+            (
+              [
+                ["all", "Todas"],
+                ["pending", "Pendientes"],
+                ["in_progress", "En progreso"],
+                ["done", "Completadas"],
+                ["cancel", "Canceladas"],
+              ] as [string, string][]
+            ).map(([key, label]) => (
+              <a
+                href={`/tasks${key === "all" ? "" : `?status=${key}`}`}
+                class={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border transition-all duration-200 ${
+                  filterStatus === key
+                    ? "bg-amber-400/30 border-amber-400/60 text-amber-200"
+                    : "bg-black/30 border-amber-400/15 text-amber-400/50 hover:border-amber-400/40 hover:text-amber-300"
+                }`}
+              >
+                {label}
+                <span class="ml-1.5 opacity-70">
+                  ({counts[key as keyof typeof counts]})
+                </span>
+              </a>
+            ))
+          }
+        </div>
+
+        <!-- ── Lista de tareas ── -->
+        {
+          filtered.length === 0 ? (
+            <div class="text-center py-16 text-amber-100/30 text-sm italic">
+              No hay tareas en esta categoría.
+            </div>
+          ) : (
+            <div class="space-y-5">
+              {filtered.map((task: any) => {
+                const subtasks = task.subtasks ?? [];
+                const doneCount = subtasks.filter((s: any) => s.done).length;
+                const isOpen = openTaskId === String(task.id);
+                const isCreator = task.created_by === user.id;
+                const progress =
+                  subtasks.length > 0
+                    ? Math.round((doneCount / subtasks.length) * 100)
+                    : null;
+
+                return (
+                  <div
+                    class={`task-card bg-black/50 backdrop-blur-sm rounded-xl border overflow-hidden transition-all duration-300 ${
+                      task.status === "done"
+                        ? "border-green-400/20 opacity-70"
+                        : task.status === "cancel"
+                          ? "border-red-400/15 opacity-50"
+                          : task.status === "in_progress"
+                            ? "border-blue-400/30 shadow-[0_0_20px_rgba(96,165,250,0.08)]"
+                            : "border-amber-400/25 shadow-[0_0_20px_rgba(251,191,36,0.06)]"
+                    }`}
+                    id={`task-${task.id}`}
+                  >
+                    {/* ─ Header ─ */}
+                    <div class="px-5 py-4 flex flex-wrap items-start justify-between gap-3">
+                      <div class="flex-1 min-w-0">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                          <span
+                            class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border ${statusColors(task.status)}`}
+                          >
+                            {statusLabel(task.status)}
+                          </span>
+                          <span class="text-amber-100/25 text-xs">
+                            por {(task.creator as any)?.name ?? "Mentor"} · hace{" "}
+                            {timeAgo(task.updated_at)}
+                          </span>
+                        </div>
+                        <h3 class="text-amber-200 font-black text-base uppercase tracking-wide break-words">
+                          {task.title}
+                        </h3>
+                        {subtasks.length > 0 && (
+                          <p class="text-amber-100/40 text-xs mt-1">
+                            {doneCount}/{subtasks.length} subtareas completadas
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Acciones rápidas */}
+                      <div class="flex flex-wrap gap-2 shrink-0">
+                        {/* Cambiar estado */}
+                        <form
+                          action="/api/tasks/update"
+                          method="post"
+                          class="flex gap-1"
+                        >
+                          <input type="hidden" name="task_id" value={task.id} />
+                          <select
+                            name="status"
+                            onchange="this.form.submit()"
+                            class="px-2 py-1.5 bg-black/50 border border-amber-400/20 rounded-lg text-amber-200 text-xs focus:outline-none focus:border-amber-400/50 cursor-pointer appearance-none"
+                          >
+                            {["pending", "in_progress", "done", "cancel"].map(
+                              (s) => (
+                                <option
+                                  value={s}
+                                  selected={task.status === s}
+                                  class="bg-[#0a0011]"
+                                >
+                                  {statusLabel(s)}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </form>
+
+                        {/* Toggle detalles */}
+                        <a
+                          href={
+                            isOpen
+                              ? `/tasks${filterStatus !== "all" ? `?status=${filterStatus}` : ""}#task-${task.id}`
+                              : `/tasks?open=${task.id}${filterStatus !== "all" ? `&status=${filterStatus}` : ""}#task-${task.id}`
+                          }
+                          class="px-3 py-1.5 bg-black/40 border border-amber-400/20 hover:border-amber-400/40 text-amber-400/60 hover:text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                        >
+                          {isOpen ? "▲ Cerrar" : "▼ Ver"}
+                        </a>
+
+                        {/* Eliminar (solo creador o admin) */}
+                        {(isCreator || role === "admin") && (
+                          <form
+                            action="/api/tasks/delete"
+                            method="post"
+                            onsubmit="return confirm('¿Eliminar esta tarea?')"
+                          >
+                            <input
+                              type="hidden"
+                              name="task_id"
+                              value={task.id}
+                            />
+                            <button
+                              type="submit"
+                              class="px-3 py-1.5 bg-black/40 hover:bg-red-900/30 border border-amber-400/10 hover:border-red-500/40 text-amber-200/30 hover:text-red-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                            >
+                              ✕
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    {progress !== null && (
+                      <div class="px-5 pb-3">
+                        <div class="w-full h-1 bg-amber-400/10 rounded-full overflow-hidden">
+                          <div
+                            class={`h-full rounded-full transition-all duration-500 ${progress === 100 ? "bg-green-400" : "bg-amber-400"}`}
+                            style={`width: ${progress}%`}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Detalles expandibles */}
+                    {isOpen && (
+                      <div class="border-t border-amber-400/15">
+                        {/* Descripción + edición */}
+                        <div class="px-5 py-4 space-y-4">
+                          {/* Descripción editable */}
+                          <div>
+                            <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                              Descripción
+                            </p>
+                            <form
+                              action="/api/tasks/update"
+                              method="post"
+                              class="flex flex-col gap-2"
+                            >
+                              <input
+                                type="hidden"
+                                name="task_id"
+                                value={task.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="status"
+                                value={task.status}
+                              />
+                              <input
+                                type="text"
+                                name="title"
+                                value={task.title}
+                                required
+                                class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-200 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono"
+                              />
+                              <textarea
+                                name="description"
+                                rows={3}
+                                class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100/80 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono resize-none placeholder-amber-100/20"
+                                placeholder="Sin descripción…"
+                              >
+                                {task.description ?? ""}
+                              </textarea>
+                              <div class="flex justify-end">
+                                <button
+                                  type="submit"
+                                  class="px-5 py-1.5 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                                >
+                                  Guardar cambios
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+
+                          {/* Subtareas */}
+                          <div class="pt-4 border-t border-amber-400/15">
+                            <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-3">
+                              Subtareas ({doneCount}/{subtasks.length})
+                            </p>
+
+                            {subtasks.length === 0 ? (
+                              <p class="text-amber-100/25 text-sm italic mb-3">
+                                Sin subtareas aún.
+                              </p>
+                            ) : (
+                              <ul class="space-y-1.5 mb-3">
+                                {subtasks
+                                  .slice()
+                                  .sort(
+                                    (a: any, b: any) =>
+                                      Number(a.done) - Number(b.done),
+                                  )
+                                  .map((sub: any) => (
+                                    <li class="flex items-center gap-3 group/sub">
+                                      <form
+                                        action="/api/tasks/subtasks/update"
+                                        method="post"
+                                        class="flex items-center gap-3 flex-1"
+                                      >
+                                        <input
+                                          type="hidden"
+                                          name="subtask_id"
+                                          value={sub.id}
+                                        />
+                                        <input
+                                          type="hidden"
+                                          name="done"
+                                          value={sub.done ? "false" : "true"}
+                                        />
+                                        <button
+                                          type="submit"
+                                          class={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
+                                            sub.done
+                                              ? "bg-green-400/30 border-green-400/60 text-green-300"
+                                              : "bg-transparent border-amber-400/30 hover:border-amber-400/60"
+                                          }`}
+                                        >
+                                          {sub.done && (
+                                            <span class="text-xs">✓</span>
+                                          )}
+                                        </button>
+                                        <span
+                                          class={`text-sm transition-all ${sub.done ? "line-through text-amber-100/30" : "text-amber-100/80"}`}
+                                        >
+                                          {sub.title}
+                                        </span>
+                                      </form>
+                                      <form
+                                        action="/api/tasks/subtasks/delete"
+                                        method="post"
+                                        class="opacity-0 group-hover/sub:opacity-100 transition-opacity"
+                                      >
+                                        <input
+                                          type="hidden"
+                                          name="subtask_id"
+                                          value={sub.id}
+                                        />
+                                        <button
+                                          type="submit"
+                                          class="text-amber-400/30 hover:text-red-400 text-xs px-1 transition-colors"
+                                          title="Eliminar subtarea"
+                                        >
+                                          ✕
+                                        </button>
+                                      </form>
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+
+                            {/* Añadir subtarea */}
+                            <form
+                              action="/api/tasks/subtasks/create"
+                              method="post"
+                              class="flex gap-2"
+                            >
+                              <input
+                                type="hidden"
+                                name="task_id"
+                                value={task.id}
+                              />
+                              <input
+                                type="text"
+                                name="title"
+                                placeholder="Nueva subtarea…"
+                                required
+                                maxlength={200}
+                                class="flex-1 px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/25 text-sm focus:outline-none focus:border-amber-400/40 transition-all font-mono"
+                              />
+                              <button
+                                type="submit"
+                                class="px-4 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap"
+                              >
+                                + Añadir
+                              </button>
+                            </form>
+                          </div>
+
+                          {/* Chat */}
+                          <div class="pt-4 border-t border-amber-400/15">
+                            <Chat channel={`task-${task.id}`} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        }
+      </div>
+    </div>
+    <Footer />
+  </main>
+</Layout>
+
+<script>
+  const toggleBtn = document.getElementById("toggle-create");
+  const createForm = document.getElementById("create-form");
+  const toggleIcon = document.getElementById("toggle-icon");
+
+  toggleBtn?.addEventListener("click", () => {
+    const isHidden = createForm?.classList.contains("hidden");
+    createForm?.classList.toggle("hidden");
+    if (toggleIcon) {
+      toggleIcon.style.transform = isHidden ? "rotate(180deg)" : "";
+    }
+  });
+
+  // Auto-scroll to open task
+  const hash = window.location.hash;
+  if (hash?.startsWith("#task-")) {
+    const el = document.querySelector(hash);
+    if (el) {
+      setTimeout(
+        () => el.scrollIntoView({ behavior: "smooth", block: "start" }),
+        100,
+      );
+    }
+  }
+</script>

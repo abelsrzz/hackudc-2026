@@ -85,6 +85,26 @@ CREATE TABLE public.sponsors (
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT sponsors_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.subtasks (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  task_id bigint NOT NULL,
+  title text NOT NULL,
+  done boolean NOT NULL DEFAULT false,
+  CONSTRAINT subtasks_pkey PRIMARY KEY (id),
+  CONSTRAINT subtasks_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
+);
+CREATE TABLE public.tasks (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  title text NOT NULL,
+  description text,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::task_status_enum,
+  created_by uuid NOT NULL,
+  CONSTRAINT tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.upvotes (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
