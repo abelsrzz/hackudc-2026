@@ -30,6 +30,15 @@ if (!profile.sponsor_id) {
   return redirect("/challenges");
 }
 
+// Obtener datos actuales del sponsor
+const { data: sponsor } = await supabaseAdmin
+  .from("sponsors")
+  .select("id, name, logo_path, website_url, description")
+  .eq("id", profile.sponsor_id)
+  .single();
+
+const supabaseUrl = import.meta.env.SUPABASE_URL;
+
 // Verificar si ya existe un challenge para este sponsor
 const { data: existingChallenge } = await supabaseAdmin
   .from("challenges")
@@ -126,7 +135,142 @@ const { data: existingChallenge } = await supabaseAdmin
       <div
         class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 sm:p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
       >
-        <form method="post" action="/api/challenges/create" class="space-y-6">
+        <!-- Información del Sponsor -->
+        <div class="mb-8 pb-6 border-b border-amber-400/15">
+          <h2
+            class="text-xl font-bold uppercase tracking-wider text-amber-300 mb-4"
+          >
+            Información del Sponsor
+          </h2>
+
+          {/* Logo actual del sponsor */}
+          {
+            (() => {
+              const logoUrl = sponsor?.logo_path
+                ? `${supabaseUrl}/storage/v1/object/public/sponsor-logos/${sponsor.logo_path}`
+                : null;
+              return (
+                <div class="mb-4">
+                  <p class="text-amber-300/80 text-sm mb-2">Logo actual:</p>
+                  {logoUrl ? (
+                    <div class="flex items-center gap-4">
+                      <img
+                        src={logoUrl}
+                        alt="Logo del sponsor"
+                        class="w-24 h-24 object-cover rounded-xl bg-white/5 border border-amber-400/20"
+                      />
+                      <div>
+                        <p class="text-amber-100/60 text-sm">{sponsor?.name}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div class="flex items-center gap-4">
+                      <div class="w-24 h-24 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400/50 font-bold text-3xl">
+                        {sponsor?.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <p class="text-amber-100/40 text-sm">
+                        No hay logo cargado aún
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          }
+
+          {/* Upload de logo */}
+          <div class="mb-4">
+            <label
+              for="logo-input"
+              class="block text-amber-300 font-bold uppercase tracking-wider text-sm mb-2"
+            >
+              Subir/Actualizar Logo
+            </label>
+            <div class="flex items-center gap-3">
+              <label
+                for="logo-input"
+                class="flex items-center gap-2 px-4 py-2 bg-black/50 border border-amber-400/30 rounded-lg cursor-pointer hover:border-amber-400/50 transition-all"
+              >
+                <span class="text-amber-200 text-sm">📁 Seleccionar imagen</span
+                >
+                <input
+                  id="logo-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                  class="hidden"
+                />
+              </label>
+              <span id="logo-filename" class="text-amber-100/50 text-sm italic"
+                >Ningún archivo seleccionado</span
+              >
+            </div>
+            <p class="text-amber-200/50 text-xs mt-2">
+              JPG, PNG, WebP, SVG · máx. 5 MB
+            </p>
+          </div>
+
+          {/* Campos de información del sponsor */}
+          <div class="space-y-4">
+            <div>
+              <label
+                for="sponsor_name"
+                class="block text-amber-300 font-bold uppercase tracking-wider text-sm mb-2"
+              >
+                Nombre de la Empresa *
+              </label>
+              <input
+                type="text"
+                id="sponsor_name"
+                name="sponsor_name"
+                required
+                value={sponsor?.name ?? ""}
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
+                placeholder="Nombre de la empresa patrocinadora"
+              />
+            </div>
+
+            <div>
+              <label
+                for="sponsor_website"
+                class="block text-amber-300 font-bold uppercase tracking-wider text-sm mb-2"
+              >
+                Sitio Web
+              </label>
+              <input
+                type="url"
+                id="sponsor_website"
+                name="sponsor_website"
+                value={sponsor?.website_url ?? ""}
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
+                placeholder="https://ejemplo.com"
+              />
+            </div>
+
+            <div>
+              <label
+                for="sponsor_description"
+                class="block text-amber-300 font-bold uppercase tracking-wider text-sm mb-2"
+              >
+                Descripción de la Empresa
+              </label>
+              <textarea
+                id="sponsor_description"
+                name="sponsor_description"
+                rows="3"
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all resize-vertical"
+                placeholder="Breve descripción de la empresa..."
+                >{sponsor?.description ?? ""}</textarea
+              >
+            </div>
+          </div>
+        </div>
+
+        <form
+          method="post"
+          action="/api/challenges/create"
+          class="space-y-6"
+          id="challenge-form"
+        >
           <!-- Título -->
           <div>
             <label
@@ -226,3 +370,95 @@ const { data: existingChallenge } = await supabaseAdmin
     </div>
   </main>
 </Layout>
+
+<script>
+  // Mostrar nombre del archivo seleccionado
+  const logoInput = document.getElementById("logo-input") as HTMLInputElement;
+  const logoFilename = document.getElementById("logo-filename");
+
+  logoInput?.addEventListener("change", () => {
+    if (logoInput.files && logoInput.files[0]) {
+      if (logoFilename) {
+        logoFilename.textContent = logoInput.files[0].name;
+      }
+    } else {
+      if (logoFilename) {
+        logoFilename.textContent = "Ningún archivo seleccionado";
+      }
+    }
+  });
+
+  // Manejar el envío del formulario
+  const form = document.getElementById("challenge-form") as HTMLFormElement;
+  form?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    // Primero, actualizar datos del sponsor si han cambiado
+    const sponsorName = (
+      document.getElementById("sponsor_name") as HTMLInputElement
+    )?.value;
+    const sponsorWebsite = (
+      document.getElementById("sponsor_website") as HTMLInputElement
+    )?.value;
+    const sponsorDescription = (
+      document.getElementById("sponsor_description") as HTMLTextAreaElement
+    )?.value;
+
+    // Si hay logo seleccionado, subirlo primero
+    if (logoInput.files && logoInput.files[0]) {
+      const logoFormData = new FormData();
+      logoFormData.append("logo", logoInput.files[0]);
+
+      try {
+        const logoResponse = await fetch("/api/sponsors/upload-logo", {
+          method: "POST",
+          body: logoFormData,
+        });
+
+        if (!logoResponse.ok) {
+          const errorData = await logoResponse.json();
+          alert(
+            "Error al subir el logo: " +
+              (errorData.error || "Error desconocido"),
+          );
+          return;
+        }
+      } catch (error) {
+        alert("Error al subir el logo: " + error);
+        return;
+      }
+    }
+
+    // Actualizar información del sponsor si es necesario
+    if (sponsorName || sponsorWebsite || sponsorDescription) {
+      try {
+        const sponsorFormData = new FormData();
+        if (sponsorName) sponsorFormData.append("name", sponsorName);
+        if (sponsorWebsite)
+          sponsorFormData.append("website_url", sponsorWebsite);
+        if (sponsorDescription)
+          sponsorFormData.append("description", sponsorDescription);
+
+        const sponsorResponse = await fetch("/api/sponsors/update", {
+          method: "POST",
+          body: sponsorFormData,
+        });
+
+        if (!sponsorResponse.ok) {
+          const errorData = await sponsorResponse.json();
+          alert(
+            "Error al actualizar datos del sponsor: " +
+              (errorData.error || "Error desconocido"),
+          );
+          return;
+        }
+      } catch (error) {
+        alert("Error al actualizar datos del sponsor: " + error);
+        return;
+      }
+    }
+
+    // Finalmente, enviar el formulario del challenge
+    form.submit();
+  });
+</script>

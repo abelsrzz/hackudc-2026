@@ -24,8 +24,25 @@ const { data: profile } = await supabaseAdmin
 // Obtener todos los challenges
 const { data: challenges } = await supabaseAdmin
   .from("challenges")
-  .select("id, title, short_description, reward")
+  .select(
+    `
+    id,
+    title,
+    short_description,
+    reward,
+    sponsor_id,
+    sponsors (
+      id,
+      name,
+      logo_path,
+      website_url,
+      description
+    )
+  `,
+  )
   .order("title", { ascending: true });
+
+const supabaseUrl = import.meta.env.SUPABASE_URL;
 
 // Upvotes de challenges
 const challengeIds = (challenges ?? []).map((c: any) => String(c.id));
@@ -102,59 +119,92 @@ for (const v of challengeUpvotesRaw ?? []) {
         {
           challenges && challenges.length > 0 ? (
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {challenges.map((challenge) => (
-                <a
-                  href={`/challenge?id=${challenge.id}`}
-                  class="group bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] hover:border-amber-400/50 hover:shadow-[0_0_30px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-                >
-                  <h2 class="text-xl font-bold uppercase tracking-wider text-amber-300 mb-3 group-hover:text-amber-200 transition-colors">
-                    {challenge.title}
-                  </h2>
+              {challenges.map((challenge) => {
+                const sponsor = (challenge as any).sponsors;
+                const logoUrl = sponsor?.logo_path
+                  ? `${supabaseUrl}/storage/v1/object/public/sponsor-logos/${sponsor.logo_path}`
+                  : null;
+                return (
+                  <a
+                    href={`/challenge?id=${challenge.id}`}
+                    class="group bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] hover:border-amber-400/50 hover:shadow-[0_0_30px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02] cursor-pointer overflow-hidden flex flex-col"
+                  >
+                    {/* Header con logo del sponsor */}
+                    {sponsor && (
+                      <div class="px-6 pt-5 pb-3 border-b border-amber-400/10 flex items-center gap-3">
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt={sponsor.name}
+                            class="w-10 h-10 object-cover rounded-lg bg-white/5 border border-amber-400/20"
+                          />
+                        ) : (
+                          <div class="w-10 h-10 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400/50 font-bold text-xs">
+                            {sponsor.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div class="flex-1 min-w-0">
+                          <p class="text-amber-200/60 text-xs uppercase tracking-wider truncate">
+                            {sponsor.name}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
-                  {challenge.short_description && (
-                    <p class="text-amber-100/70 text-sm mb-4 line-clamp-3">
-                      {challenge.short_description}
-                    </p>
-                  )}
+                    {/* Contenido del challenge */}
+                    <div class="p-6 flex-1 flex flex-col">
+                      <h2 class="text-xl font-bold uppercase tracking-wider text-amber-300 mb-3 group-hover:text-amber-200 transition-colors">
+                        {challenge.title}
+                      </h2>
 
-                  {challenge.reward && (
-                    <div class="mt-4 pt-4 border-t border-amber-400/20">
-                      <p class="text-amber-300/60 text-xs uppercase tracking-wider mb-1">
-                        Recompensa
-                      </p>
-                      <p class="text-amber-200 text-sm font-bold">
-                        {challenge.reward}
-                      </p>
-                    </div>
-                  )}
+                      {challenge.short_description && (
+                        <p class="text-amber-100/70 text-sm mb-4 line-clamp-3 flex-1">
+                          {challenge.short_description}
+                        </p>
+                      )}
 
-                  <div class="mt-4 flex items-center justify-between gap-2">
-                    <span class="flex items-center gap-2 text-amber-300/80 text-sm group-hover:text-amber-200 transition-colors">
-                      Ver detalles
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-4 w-4 group-hover:translate-x-1 transition-transform"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 5l7 7-7 7"
+                      {challenge.reward && (
+                        <div class="mt-auto pt-4 border-t border-amber-400/20">
+                          <p class="text-amber-300/60 text-xs uppercase tracking-wider mb-1">
+                            Recompensa
+                          </p>
+                          <p class="text-amber-200 text-sm font-bold">
+                            {challenge.reward}
+                          </p>
+                        </div>
+                      )}
+
+                      <div class="mt-4 flex items-center justify-between gap-2">
+                        <span class="flex items-center gap-2 text-amber-300/80 text-sm group-hover:text-amber-200 transition-colors">
+                          Ver detalles
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 group-hover:translate-x-1 transition-transform"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </span>
+                        <UpvoteButton
+                          entityType="challenge"
+                          entityId={String(challenge.id)}
+                          count={
+                            challengeUpvoteCount[String(challenge.id)] ?? 0
+                          }
+                          voted={userChallengeVotes.has(String(challenge.id))}
                         />
-                      </svg>
-                    </span>
-                    <UpvoteButton
-                      entityType="challenge"
-                      entityId={String(challenge.id)}
-                      count={challengeUpvoteCount[String(challenge.id)] ?? 0}
-                      voted={userChallengeVotes.has(String(challenge.id))}
-                    />
-                  </div>
-                </a>
-              ))}
+                      </div>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           ) : (
             <div class="bg-black/40 backdrop-blur-sm p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] text-center">

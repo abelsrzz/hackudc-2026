@@ -31,9 +31,27 @@ if (!challengeId) return redirect("/challenges");
 // Obtener el challenge de la base de datos
 const { data: challenge, error } = await supabaseAdmin
   .from("challenges")
-  .select("id, title, short_description, content_markdown, reward, sponsor_id")
+  .select(
+    `
+    id,
+    title,
+    short_description,
+    content_markdown,
+    reward,
+    sponsor_id,
+    sponsors (
+      id,
+      name,
+      logo_path,
+      website_url,
+      description
+    )
+  `,
+  )
   .eq("id", challengeId)
   .single();
+
+const supabaseUrl = import.meta.env.SUPABASE_URL;
 
 if (error || !challenge) return redirect("/challenges");
 
@@ -91,43 +109,112 @@ const contentHtml = marked.parse(challenge.content_markdown || "");
 
       <!-- Contenedor principal -->
       <div
-        class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 sm:p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+        class="w-full max-w-4xl bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] overflow-hidden"
       >
-        <!-- Título del challenge -->
-        <h1
-          class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-6 text-center"
-        >
-          {challenge.title}
-        </h1>
-
-        <!-- Descripción corta -->
+        {/* Header del sponsor */}
         {
-          challenge.short_description && (
-            <p class="text-amber-100/80 text-lg mb-8 text-center italic">
-              {challenge.short_description}
-            </p>
-          )
+          (() => {
+            const sponsor = (challenge as any).sponsors;
+            const logoUrl = sponsor?.logo_path
+              ? `${supabaseUrl}/storage/v1/object/public/sponsor-logos/${sponsor.logo_path}`
+              : null;
+            return (
+              sponsor && (
+                <div class="px-8 sm:px-12 py-6 bg-black/30 border-b border-amber-400/20">
+                  <div class="flex items-center gap-4">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={sponsor.name}
+                        class="w-16 h-16 object-cover rounded-xl bg-white/5 border border-amber-400/20"
+                      />
+                    ) : (
+                      <div class="w-16 h-16 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400/50 font-bold text-2xl">
+                        {sponsor.name?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div class="flex-1">
+                      <p class="text-amber-200/60 text-xs uppercase tracking-wider mb-1">
+                        Patrocinado por
+                      </p>
+                      {sponsor.website_url ? (
+                        <a
+                          href={sponsor.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-amber-200 text-xl font-bold hover:text-amber-300 transition-colors inline-flex items-center gap-2 group"
+                        >
+                          {sponsor.name}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 opacity-50 group-hover:opacity-100 transition-opacity"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </a>
+                      ) : (
+                        <h3 class="text-amber-200 text-xl font-bold">
+                          {sponsor.name}
+                        </h3>
+                      )}
+                      {sponsor.description && (
+                        <p class="text-amber-100/60 text-sm mt-2 line-clamp-2">
+                          {sponsor.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            );
+          })()
         }
 
-        <!-- Recompensa -->
-        {
-          challenge.reward && (
-            <div class="mb-8 p-4 bg-amber-900/20 border border-amber-400/30 rounded-lg">
-              <p class="text-amber-300 font-bold uppercase tracking-wider text-sm mb-1">
-                🏆 Recompensa
+        <div class="p-8 sm:p-12">
+          <!-- Título del challenge -->
+          <h1
+            class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-6 text-center"
+          >
+            {challenge.title}
+          </h1>
+
+          <!-- Descripción corta -->
+          {
+            challenge.short_description && (
+              <p class="text-amber-100/80 text-lg mb-8 text-center italic">
+                {challenge.short_description}
               </p>
-              <p class="text-amber-100 text-lg">{challenge.reward}</p>
-            </div>
-          )
-        }
+            )
+          }
 
-        <!-- Contenido en markdown -->
-        <div class="prose prose-invert max-w-none" set:html={contentHtml} />
+          <!-- Recompensa -->
+          {
+            challenge.reward && (
+              <div class="mb-8 p-4 bg-amber-900/20 border border-amber-400/30 rounded-lg">
+                <p class="text-amber-300 font-bold uppercase tracking-wider text-sm mb-1">
+                  🏆 Recompensa
+                </p>
+                <p class="text-amber-100 text-lg">{challenge.reward}</p>
+              </div>
+            )
+          }
+
+          <!-- Contenido en markdown -->
+          <div class="prose prose-invert max-w-none" set:html={contentHtml} />
+        </div>
 
         <!-- Botones de edición y eliminación para el sponsor dueño -->
         {
           isOwner && (
-            <div class="mt-8 pt-8 border-t border-amber-400/20 flex flex-col sm:flex-row gap-4">
+            <div class="px-8 sm:px-12 pb-8 pt-4 border-t border-amber-400/20 flex flex-col sm:flex-row gap-4">
               <a
                 href={`/edit-challenge?id=${challenge.id}`}
                 class="flex-1 text-center px-8 py-4 bg-amber-400 text-black font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-amber-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all duration-300"
@@ -148,7 +235,7 @@ const contentHtml = marked.parse(challenge.content_markdown || "");
         <!-- Botón de eliminación para Admin (si no es el dueño) -->
         {
           isAdmin && !isOwner && (
-            <div class="mt-8 pt-8 border-t border-amber-400/20">
+            <div class="px-8 sm:px-12 pb-8 pt-4 border-t border-amber-400/20">
               <button
                 type="button"
                 class="delete-challenge-btn w-full px-8 py-4 bg-red-600 text-white font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-red-700 hover:scale-[1.02] transition-all duration-300"

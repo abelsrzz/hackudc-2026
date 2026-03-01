@@ -582,12 +582,15 @@ if (userProjectId) {
                         )}
                       </div>
                       {(project as any).challenges && (
-                        <p class="text-amber-300/70 text-xs mb-2 flex items-center gap-1.5">
+                        <a
+                          href={`/challenge?id=${(project as any).challenges.id}`}
+                          class="text-amber-300/70 hover:text-amber-300 text-xs mb-2 flex items-center gap-1.5 transition-colors group/challenge"
+                        >
                           <span>🏆</span>
-                          <span class="truncate">
+                          <span class="truncate group-hover/challenge:underline">
                             {(project as any).challenges.title}
                           </span>
-                        </p>
+                        </a>
                       )}
                       {(project as any).sede && (
                         <p class="text-amber-100/40 text-xs mb-3 flex items-center gap-1.5">

@@ -85,7 +85,7 @@ CREATE TABLE public.sponsors (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
-  logo_url text,
+  logo_path text,
   website_url text,
   description text,
   active boolean DEFAULT true,
@@ -98,8 +98,10 @@ CREATE TABLE public.subtasks (
   task_id bigint NOT NULL,
   title text NOT NULL,
   done boolean NOT NULL DEFAULT false,
+  assigned_to uuid,
   CONSTRAINT subtasks_pkey PRIMARY KEY (id),
-  CONSTRAINT subtasks_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
+  CONSTRAINT subtasks_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id),
+  CONSTRAINT subtasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.tasks (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -109,8 +111,10 @@ CREATE TABLE public.tasks (
   description text,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::task_status_enum,
   created_by uuid NOT NULL,
+  project_id bigint,
   CONSTRAINT tasks_pkey PRIMARY KEY (id),
-  CONSTRAINT tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+  CONSTRAINT tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id),
+  CONSTRAINT tasks_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id)
 );
 CREATE TABLE public.upvotes (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
@@ -121,4 +125,3 @@ CREATE TABLE public.upvotes (
   CONSTRAINT upvotes_pkey PRIMARY KEY (id),
   CONSTRAINT upvotes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
 );
-
