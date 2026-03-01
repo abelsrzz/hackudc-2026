@@ -39,6 +39,7 @@ import patternSvg from "../assets/pattern.svg";
       <form
         action="/api/auth/register"
         method="post"
+        id="register-form"
         class="w-full max-w-md space-y-5 bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
       >
         <!-- Nombre -->
@@ -89,6 +90,26 @@ import patternSvg from "../assets/pattern.svg";
             required
             minlength="6"
           />
+        </div>
+
+        <!-- Confirmar contraseña -->
+        <div class="space-y-2">
+          <label
+            for="confirm_password"
+            class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+            >Confirmar contraseña <span class="text-red-400">*</span></label
+          >
+          <input
+            type="password"
+            name="confirm_password"
+            id="confirm_password"
+            class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            required
+            minlength="6"
+          />
+          <p id="pw-mismatch" class="hidden text-red-400 text-xs font-medium">
+            ⚠ Las contraseñas no coinciden
+          </p>
         </div>
 
         <div class="border-t border-amber-400/15 pt-4 space-y-5">
@@ -185,6 +206,69 @@ import patternSvg from "../assets/pattern.svg";
           Registrarse
         </button>
       </form>
+
+      <script>
+        const form = document.getElementById(
+          "register-form",
+        ) as HTMLFormElement;
+        const pw = document.getElementById("password") as HTMLInputElement;
+        const pw2 = document.getElementById(
+          "confirm_password",
+        ) as HTMLInputElement;
+        const msg = document.getElementById("pw-mismatch") as HTMLElement;
+
+        function validate() {
+          const mismatch = pw2.value.length > 0 && pw.value !== pw2.value;
+          msg.classList.toggle("hidden", !mismatch);
+          pw2.setCustomValidity(mismatch ? "Las contraseñas no coinciden" : "");
+        }
+
+        pw.addEventListener("input", validate);
+        pw2.addEventListener("input", validate);
+
+        form.addEventListener("submit", (e) => {
+          if (pw.value !== pw2.value) {
+            e.preventDefault();
+            msg.classList.remove("hidden");
+            pw2.focus();
+          }
+        });
+      </script>
+
+      <!-- OAuth rápido -->
+      <div class="w-full max-w-md mt-4">
+        <div class="relative py-3">
+          <div class="absolute inset-0 flex items-center">
+            <span class="w-full border-t border-amber-400/20"></span>
+          </div>
+          <div class="relative flex justify-center text-xs uppercase">
+            <span class="bg-[#0a0011] px-3 text-amber-200/50 tracking-widest"
+              >O regístrate con</span
+            >
+          </div>
+        </div>
+        <form action="/api/auth/signin" method="post">
+          <button
+            value="github"
+            name="provider"
+            type="submit"
+            class="w-full flex items-center justify-center gap-3 px-8 py-3 bg-black/50 border-2 border-amber-400/30 text-amber-100 font-bold tracking-[0.15em] uppercase text-sm rounded-lg hover:bg-amber-400/10 hover:border-amber-300 hover:text-white transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.1)]"
+          >
+            <svg
+              class="w-5 h-5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                clip-rule="evenodd"></path>
+            </svg>
+            GitHub
+          </button>
+        </form>
+      </div>
       <Footer />
     </div>
   </main>

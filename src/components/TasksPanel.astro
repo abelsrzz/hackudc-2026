@@ -8,6 +8,7 @@ interface Props {
   userRole: string;
   canManage: boolean;
   instanceId?: string;
+  showTaskChat?: boolean;
 }
 
 const {
@@ -16,6 +17,7 @@ const {
   userRole,
   canManage,
   instanceId = "global",
+  showTaskChat = true,
 } = Astro.props;
 
 const supabase = createClient(
@@ -575,9 +577,11 @@ const counts = {
                   </div>
 
                   {/* Chat de la tarea */}
-                  <div class="pt-4 border-t border-amber-400/15">
-                    <Chat channel={`task-${task.id}`} />
-                  </div>
+                  {showTaskChat && (
+                    <div class="pt-4 border-t border-amber-400/15">
+                      <Chat channel={`task-${task.id}`} />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

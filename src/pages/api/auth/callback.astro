@@ -1,0 +1,141 @@
+---
+// Flujo PKCE: Supabase envía ?code= como query param (cliente SSR con storage)
+// Flujo implicit: Supabase envía #access_token= como hash (cliente sin storage)
+// Esta página maneja los dos casos.
+
+import { supabaseAdmin } from "../../../lib/supabase";
+
+const code = Astro.url.searchParams.get("code");
+
+if (code) {
+  // ── Flujo PKCE ──────────────────────────────────────────────
+  // Necesitamos el cliente anon para exchangeCodeForSession,
+  // pero como no tenemos PKCE verifier guardado en el servidor,
+  // importamos el cliente con authFlowType adecuado.
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabaseClient = createClient(
+    import.meta.env.SUPABASE_URL,
+    import.meta.env.SUPABASE_KEY,
+    { auth: { flowType: "pkce" } },
+  );
+
+  const { data, error } =
+    await supabaseClient.auth.exchangeCodeForSession(code);
+
+  if (!error && data.session) {
+    Astro.cookies.set("sb-access-token", data.session.access_token, {
+      path: "/",
+    });
+    Astro.cookies.set("sb-refresh-token", data.session.refresh_token, {
+      path: "/",
+    });
+
+    // Crear perfil OAuth si no existe
+    const user = data.user;
+    if (user) {
+      const { data: existing } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!existing) {
+        const meta = user.user_metadata ?? {};
+        const name: string =
+          meta.full_name ?? meta.name ?? meta.user_name ?? user.email ?? "";
+        const avatarUrl: string | null = meta.avatar_url ?? null;
+        const githubHandle: string | null =
+          meta.user_name ?? meta.preferred_username ?? null;
+        const github = githubHandle
+          ? `https://github.com/${githubHandle}`
+          : null;
+
+        await supabaseAdmin.from("profiles").insert({
+          id: user.id,
+          name,
+          role: "Hacker",
+          avatar_url: avatarUrl,
+          github,
+        });
+      }
+    }
+
+    return Astro.redirect("/dashboard");
+  }
+}
+
+// Sin ?code= → la página se renderiza y el script del cliente
+// lee el hash fragment que Supabase envía en el flujo implicit.
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Iniciando sesión…</title>
+    <style>
+      body {
+        background: #0a0011;
+        color: #fde68a;
+        font-family: monospace;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        flex-direction: column;
+        gap: 1rem;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #fbbf24aa;
+        border-top-color: #fbbf24;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="spinner"></div>
+    <p>Procesando autenticación…</p>
+
+    <script>
+      (async () => {
+        // Leer hash fragment: #access_token=...&refresh_token=...
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+
+        if (accessToken && refreshToken) {
+          try {
+            const res = await fetch("/api/auth/set-session", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              }),
+            });
+
+            if (res.ok) {
+              window.location.replace("/dashboard");
+              return;
+            }
+          } catch (e) {
+            console.error("Error al establecer sesión:", e);
+          }
+        }
+
+        // Si algo falla, redirigir al login con error
+        window.location.replace("/signin?error=oauth_failed");
+      })();
+    </script>
+  </body>
+</html>
