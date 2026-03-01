@@ -33,6 +33,7 @@ CREATE TABLE public.messages (
   reply_to uuid,
   created_at timestamp without time zone DEFAULT now(),
   edited_at timestamp without time zone,
+  attachment_path text,
   CONSTRAINT messages_pkey PRIMARY KEY (id),
   CONSTRAINT messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
   CONSTRAINT messages_reply_to_fkey FOREIGN KEY (reply_to) REFERENCES public.messages(id)

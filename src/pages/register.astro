@@ -39,13 +39,31 @@ import patternSvg from "../assets/pattern.svg";
       <form
         action="/api/auth/register"
         method="post"
-        class="w-full max-w-md space-y-6 bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+        class="w-full max-w-md space-y-5 bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
       >
+        <!-- Nombre -->
+        <div class="space-y-2">
+          <label
+            for="name"
+            class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+            >Nombre completo <span class="text-red-400">*</span></label
+          >
+          <input
+            type="text"
+            name="name"
+            id="name"
+            placeholder="Tu nombre y apellidos"
+            class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            required
+          />
+        </div>
+
+        <!-- Correo -->
         <div class="space-y-2">
           <label
             for="email"
             class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
-            >Correo electrónico</label
+            >Correo electrónico <span class="text-red-400">*</span></label
           >
           <input
             type="email"
@@ -56,11 +74,12 @@ import patternSvg from "../assets/pattern.svg";
           />
         </div>
 
+        <!-- Contraseña -->
         <div class="space-y-2">
           <label
             for="password"
             class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
-            >Contraseña</label
+            >Contraseña <span class="text-red-400">*</span></label
           >
           <input
             type="password"
@@ -70,6 +89,93 @@ import patternSvg from "../assets/pattern.svg";
             required
             minlength="6"
           />
+        </div>
+
+        <div class="border-t border-amber-400/15 pt-4 space-y-5">
+          <p
+            class="text-amber-200/40 text-xs uppercase tracking-widest font-bold"
+          >
+            Datos académicos (opcionales)
+          </p>
+
+          <!-- Institución -->
+          <div class="space-y-2">
+            <label
+              for="institution"
+              class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+              >Universidad / Institución</label
+            >
+            <input
+              type="text"
+              name="institution"
+              id="institution"
+              placeholder="Ej: Universidade da Coruña"
+              class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            />
+          </div>
+
+          <!-- Grado / Carrera -->
+          <div class="space-y-2">
+            <label
+              for="degree"
+              class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+              >Grado / Carrera</label
+            >
+            <input
+              type="text"
+              name="degree"
+              id="degree"
+              placeholder="Ej: Ing. Informática"
+              class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+            />
+          </div>
+
+          <!-- Año de estudio -->
+          <div class="space-y-2">
+            <label
+              for="year_of_study"
+              class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+              >Año de estudio</label
+            >
+            <select
+              name="year_of_study"
+              id="year_of_study"
+              class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all appearance-none cursor-pointer"
+            >
+              <option value="" class="text-amber-100/30 bg-[#0a0011]"
+                >Selecciona…</option
+              >
+              <option value="1" class="bg-[#0a0011]">1º año</option>
+              <option value="2" class="bg-[#0a0011]">2º año</option>
+              <option value="3" class="bg-[#0a0011]">3º año</option>
+              <option value="4" class="bg-[#0a0011]">4º año</option>
+              <option value="master" class="bg-[#0a0011]">Máster</option>
+              <option value="phd" class="bg-[#0a0011]">Doctorado</option>
+              <option value="other" class="bg-[#0a0011]">Otro</option>
+            </select>
+          </div>
+
+          <!-- GitHub -->
+          <div class="space-y-2">
+            <label
+              for="github"
+              class="block text-amber-200 font-bold tracking-wider uppercase text-sm"
+              >GitHub</label
+            >
+            <div class="relative">
+              <span
+                class="absolute left-4 top-1/2 -translate-y-1/2 text-amber-100/40 font-mono text-sm"
+                >github.com/</span
+              >
+              <input
+                type="text"
+                name="github"
+                id="github"
+                placeholder="tu-usuario"
+                class="w-full pl-[7.5rem] pr-4 py-3 bg-black/50 border-2 border-amber-400/40 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+              />
+            </div>
+          </div>
         </div>
 
         <button

@@ -6,6 +6,15 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   const email = formData.get("email")?.toString();
   const password = formData.get("password")?.toString();
   const name = formData.get("name")?.toString() || "";
+  const institution = formData.get("institution")?.toString() || null;
+  const degree = formData.get("degree")?.toString() || null;
+  const year_of_study = formData.get("year_of_study")?.toString() || null;
+  const githubHandle = formData.get("github")?.toString().trim() || null;
+  const github = githubHandle
+    ? githubHandle.startsWith("http")
+      ? githubHandle
+      : `https://github.com/${githubHandle}`
+    : null;
 
   if (!email || !password) {
     return new Response("Correo electrónico y contraseña obligatorios", {
@@ -31,6 +40,10 @@ export const POST: APIRoute = async ({ request, redirect }) => {
       id: authData.user.id,
       name,
       role: "Hacker",
+      institution: institution || undefined,
+      degree: degree || undefined,
+      year_of_study: year_of_study || undefined,
+      github: github || undefined,
     },
   ]);
 
