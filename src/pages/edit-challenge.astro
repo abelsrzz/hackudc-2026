@@ -2,39 +2,21 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
 
 const { cookies, redirect, url } = Astro;
 
-// Verificar autenticación
 const accessToken = cookies.get("sb-access-token");
-const refreshToken = cookies.get("sb-refresh-token");
+if (!accessToken) return redirect("/signin");
 
-if (!accessToken || !refreshToken) {
-  return redirect("/signin");
-}
-
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return redirect("/signin");
-  }
-} catch (error) {
-  return redirect("/signin");
-}
-
-const user = session.data.user;
-
-if (!user) {
-  return redirect("/signin");
-}
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return redirect("/signin");
 
 // Obtener perfil del usuario
-const { data: profile, error: profileError } = await supabase
+const { data: profile, error: profileError } = await supabaseAdmin
   .from("profiles")
   .select("role, sponsor_id")
   .eq("id", user.id)
@@ -44,55 +26,26 @@ if (profileError || !profile || profile.role !== "Sponsor") {
   return redirect("/challenges");
 }
 
-if (!profile.sponsor_id) {
+// Obtener ID del challenge desde query params
+const challengeId = url.searchParams.get("id");
+if (!challengeId) return redirect("/challenges");
+
+// Obtener el challenge de la base de datos
+const { data: challenge, error } = await supabaseAdmin
+  .from("challenges")
+  .select("id, title, short_description, content_markdown, reward, sponsor_id")
+  .eq("id", challengeId)
+  .single();
+
+if (error || !challenge) return redirect("/challenges");
+
+// Verificar que el usuario es el sponsor dueño
+if (challenge.sponsor_id !== profile.sponsor_id) {
   return redirect("/challenges");
 }
-
-// Verificar si ya existe un challenge para este sponsor
-const { data: existingChallenge } = await supabase
-  .from("challenges")
-  .select("id")
-  .eq("sponsor_id", profile.sponsor_id)
-  .single();
 ---
 
-<Layout title="Crear Challenge">
-  {
-    existingChallenge && (
-      <>
-        {/* Modal/Popup de challenge existente */}
-        <div
-          id="existing-challenge-modal"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-        >
-          <div class="bg-black/90 border-2 border-amber-400 rounded-xl p-8 max-w-md mx-4 shadow-[0_0_40px_rgba(251,191,36,0.3)]">
-            <h2 class="text-2xl font-bold text-amber-300 uppercase tracking-wider mb-4 text-center">
-              Challenge Existente
-            </h2>
-            <p class="text-amber-100 mb-6 text-center">
-              Tu sponsor ya tiene un challenge creado. Solo puedes tener un
-              challenge activo a la vez.
-            </p>
-            <div class="flex gap-4">
-              <a
-                href={`/challenge?id=${existingChallenge.id}`}
-                class="flex-1 text-center px-6 py-3 bg-amber-400 text-black font-bold uppercase tracking-wider rounded-lg hover:bg-amber-300 hover:scale-[1.02] transition-all"
-              >
-                Ver Challenge
-              </a>
-              <a
-                href="/challenges"
-                class="flex-1 text-center px-6 py-3 border-2 border-amber-400/50 text-amber-200 font-bold uppercase tracking-wider rounded-lg hover:border-amber-400 hover:bg-amber-400/10 transition-all"
-              >
-                Volver
-              </a>
-            </div>
-          </div>
-        </div>
-      </>
-    )
-  }
-
+<Layout title="Editar Challenge">
   <main class="relative min-h-screen overflow-hidden">
     <!-- Background layers -->
     <div
@@ -113,7 +66,7 @@ const { data: existingChallenge } = await supabase
       <!-- Botón de volver -->
       <div class="w-full max-w-4xl mb-6">
         <a
-          href="/challenges"
+          href={`/challenge?id=${challenge.id}`}
           class="inline-flex items-center gap-2 rounded-lg border-2 border-amber-200 px-6 py-3 font-bold uppercase tracking-[0.2em] text-amber-200 transition-all duration-300 hover:scale-105 hover:bg-amber-200 hover:text-black hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]"
         >
           <svg
@@ -137,14 +90,17 @@ const { data: existingChallenge } = await supabase
       <h1
         class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-12 text-center"
       >
-        Crear Challenge
+        Editar Challenge
       </h1>
 
       <!-- Formulario -->
       <div
         class="w-full max-w-4xl bg-black/40 backdrop-blur-sm p-8 sm:p-12 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
       >
-        <form method="post" action="/api/challenges/create" class="space-y-6">
+        <form method="post" action="/api/challenges/update" class="space-y-6">
+          <!-- ID oculto -->
+          <input type="hidden" name="challenge_id" value={challenge.id} />
+
           <!-- Título -->
           <div>
             <label
@@ -158,6 +114,7 @@ const { data: existingChallenge } = await supabase
               id="title"
               name="title"
               required
+              value={challenge.title}
               class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
               placeholder="Nombre del challenge"
             />
@@ -176,6 +133,7 @@ const { data: existingChallenge } = await supabase
               id="short_description"
               name="short_description"
               required
+              value={challenge.short_description}
               class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
               placeholder="Resumen breve del challenge"
             />
@@ -196,7 +154,8 @@ const { data: existingChallenge } = await supabase
               rows="12"
               class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all resize-vertical font-mono text-sm"
               placeholder="Descripción detallada del challenge en formato Markdown..."
-            ></textarea>
+              >{challenge.content_markdown}</textarea
+            >
             <p class="text-amber-200/50 text-xs mt-2">
               Puedes usar Markdown: **negrita**, *cursiva*, # títulos, listas,
               etc.
@@ -215,6 +174,7 @@ const { data: existingChallenge } = await supabase
               type="text"
               id="reward"
               name="reward"
+              value={challenge.reward || ""}
               class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
               placeholder="Ej: 500€, Hardware, Servicios..."
             />
@@ -226,10 +186,10 @@ const { data: existingChallenge } = await supabase
               type="submit"
               class="flex-1 px-8 py-4 bg-amber-400 text-black font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-amber-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all duration-300"
             >
-              Crear Challenge
+              Guardar Cambios
             </button>
             <a
-              href="/challenges"
+              href={`/challenge?id=${challenge.id}`}
               class="px-8 py-4 border-2 border-amber-400/50 text-amber-200 font-bold uppercase tracking-[0.2em] rounded-lg hover:border-amber-400 hover:bg-amber-400/10 transition-all duration-300 text-center"
             >
               Cancelar

@@ -2,40 +2,22 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
 import { marked } from "marked";
 
 const { cookies, redirect, url } = Astro;
 
-// Verificar autenticación
 const accessToken = cookies.get("sb-access-token");
-const refreshToken = cookies.get("sb-refresh-token");
+if (!accessToken) return redirect("/signin");
 
-if (!accessToken || !refreshToken) {
-  return redirect("/signin");
-}
-
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return redirect("/signin");
-  }
-} catch (error) {
-  return redirect("/signin");
-}
-
-const user = session.data.user;
-
-if (!user) {
-  return redirect("/signin");
-}
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return redirect("/signin");
 
 // Obtener perfil del usuario
-const { data: profile } = await supabase
+const { data: profile } = await supabaseAdmin
   .from("profiles")
   .select("role, sponsor_id")
   .eq("id", user.id)
@@ -43,21 +25,16 @@ const { data: profile } = await supabase
 
 // Obtener ID del challenge desde query params
 const challengeId = url.searchParams.get("id");
-
-if (!challengeId) {
-  return redirect("/challenges");
-}
+if (!challengeId) return redirect("/challenges");
 
 // Obtener el challenge de la base de datos
-const { data: challenge, error } = await supabase
+const { data: challenge, error } = await supabaseAdmin
   .from("challenges")
   .select("id, title, short_description, content_markdown, reward, sponsor_id")
   .eq("id", challengeId)
   .single();
 
-if (error || !challenge) {
-  return redirect("/challenges");
-}
+if (error || !challenge) return redirect("/challenges");
 
 // Verificar si el usuario es el sponsor dueño del challenge
 const isOwner =
@@ -151,7 +128,7 @@ const contentHtml = marked.parse(challenge.content_markdown || "");
           isOwner && (
             <div class="mt-8 pt-8 border-t border-amber-400/20 flex flex-col sm:flex-row gap-4">
               <a
-                href={`/edit_challenge?id=${challenge.id}`}
+                href={`/edit-challenge?id=${challenge.id}`}
                 class="flex-1 text-center px-8 py-4 bg-amber-400 text-black font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-amber-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all duration-300"
               >
                 Editar Challenge

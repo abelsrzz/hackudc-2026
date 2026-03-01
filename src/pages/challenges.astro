@@ -14,14 +14,8 @@ const {
 } = await supabaseAdmin.auth.getUser(accessToken.value);
 if (userError || !user) return Astro.redirect("/signin");
 
-const user = session.data.user;
-
-if (!user) {
-  return Astro.redirect("/signin");
-}
-
 // Obtener perfil del usuario
-const { data: profile } = await supabase
+const { data: profile } = await supabaseAdmin
   .from("profiles")
   .select("role, sponsor_id")
   .eq("id", user.id)
@@ -81,7 +75,7 @@ for (const v of challengeUpvotesRaw ?? []) {
         profile?.role === "Sponsor" && (
           <div class="w-full max-w-6xl mb-6 flex justify-end">
             <a
-              href="/create_challenge"
+              href="/create-challenge"
               class="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-amber-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all duration-300"
             >
               <svg
@@ -152,14 +146,12 @@ for (const v of challengeUpvotesRaw ?? []) {
                         />
                       </svg>
                     </span>
-                    <span onclick="event.preventDefault();event.stopPropagation();">
-                      <UpvoteButton
-                        entityType="challenge"
-                        entityId={String(challenge.id)}
-                        count={challengeUpvoteCount[String(challenge.id)] ?? 0}
-                        voted={userChallengeVotes.has(String(challenge.id))}
-                      />
-                    </span>
+                    <UpvoteButton
+                      entityType="challenge"
+                      entityId={String(challenge.id)}
+                      count={challengeUpvoteCount[String(challenge.id)] ?? 0}
+                      voted={userChallengeVotes.has(String(challenge.id))}
+                    />
                   </div>
                 </a>
               ))}

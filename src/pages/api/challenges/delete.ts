@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { supabase } from "../../../lib/supabase";
+import { supabaseAdmin } from "../../../lib/supabase";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const access_token = cookies.get("sb-access-token")?.value;
@@ -7,11 +7,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser(access_token);
+  } = await supabaseAdmin.auth.getUser(access_token);
   if (!user) return new Response("No autenticado", { status: 401 });
 
   // Admins y Sponsors pueden borrar
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("role, sponsor_id")
     .eq("id", user.id)
@@ -25,7 +25,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   // Si es Sponsor, verificar que el challenge le pertenece
   if (profile.role === "Sponsor") {
-    const { data: challenge } = await supabase
+    const { data: challenge } = await supabaseAdmin
       .from("challenges")
       .select("sponsor_id")
       .eq("id", challengeId)
@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("challenges")
     .delete()
     .eq("id", challengeId);
