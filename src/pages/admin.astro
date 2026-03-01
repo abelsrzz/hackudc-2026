@@ -35,7 +35,13 @@ if (!profile || profile.role !== "Admin") {
 
 const { data: usersData } = await supabase
   .from("profiles")
-  .select("id, name, role, created_at");
+  .select("id, name, role, created_at, sponsor_id");
+
+// Obtener sponsors
+const { data: sponsorsData } = await supabase
+  .from("sponsors")
+  .select("*")
+  .order("name", { ascending: true });
 
 // Ordenar usuarios por rol
 const roleOrder = { Admin: 1, Mentor: 2, Sponsor: 3, Hacker: 4 };
@@ -71,9 +77,23 @@ const users = usersData?.sort((a, b) => {
         Panel de Administración
       </h1>
 
+      <!-- Tabla de Usuarios -->
       <div
-        class="w-full max-w-6xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] overflow-x-auto"
+        class="w-full max-w-6xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] overflow-x-auto mb-8"
       >
+        <div class="flex items-center justify-between mb-6">
+          <h2
+            class="text-2xl font-black uppercase tracking-widest text-amber-300"
+          >
+            Gestión de Usuarios
+          </h2>
+          <button
+            id="btn-create-user"
+            class="px-4 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all"
+          >
+            + Crear Usuario
+          </button>
+        </div>
         {
           users && users.length > 0 ? (
             <table class="w-full text-left border-collapse">
@@ -89,7 +109,13 @@ const users = usersData?.sort((a, b) => {
                     Rol
                   </th>
                   <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Sponsor Asignado
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
                     Fecha Registro
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Acciones
                   </th>
                 </tr>
               </thead>
@@ -108,7 +134,7 @@ const users = usersData?.sort((a, b) => {
                     <td class="p-4">
                       <select
                         data-user-id={u.id}
-                        class="px-3 py-1 bg-black/50 border-2 border-amber-400/40 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 cursor-pointer hover:bg-amber-900/20 transition-all"
+                        class="role-select px-3 py-1 bg-black/50 border-2 border-amber-400/40 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 cursor-pointer hover:bg-amber-900/20 transition-all"
                         value={u.role}
                       >
                         <option value="Admin">👑 Admin</option>
@@ -117,12 +143,35 @@ const users = usersData?.sort((a, b) => {
                         <option value="Hacker">💻 Hacker</option>
                       </select>
                     </td>
+                    <td class="p-4">
+                      <select
+                        data-user-id={u.id}
+                        data-current-role={u.role}
+                        class="sponsor-select px-3 py-1 bg-black/50 border-2 border-amber-400/40 rounded text-amber-100 text-sm focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 cursor-pointer hover:bg-amber-900/20 transition-all"
+                        value={u.sponsor_id || ""}
+                        disabled={u.role !== "Sponsor"}
+                      >
+                        <option value="">Sin sponsor</option>
+                        {sponsorsData?.map((s) => (
+                          <option value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td class="p-4 text-amber-100/80 text-sm font-mono">
                       {new Date(u.created_at).toLocaleDateString("es-ES", {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
                       })}
+                    </td>
+                    <td class="p-4">
+                      <button
+                        class="delete-user-btn px-3 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-500/50 text-red-200 rounded text-xs font-bold uppercase transition-all"
+                        data-user-id={u.id}
+                        data-user-name={u.name || "Sin nombre"}
+                      >
+                        🗑️ Eliminar
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -136,6 +185,365 @@ const users = usersData?.sort((a, b) => {
             </div>
           )
         }
+      </div>
+
+      <!-- Tabla de Sponsors -->
+      <div
+        class="w-full max-w-6xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] overflow-x-auto"
+      >
+        <div class="flex items-center justify-between mb-6">
+          <h2
+            class="text-2xl font-black uppercase tracking-widest text-amber-300"
+          >
+            Gestión de Sponsors
+          </h2>
+          <button
+            id="btn-create-sponsor"
+            class="px-4 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 font-bold uppercase text-xs tracking-wider rounded-lg transition-all"
+          >
+            + Crear Sponsor
+          </button>
+        </div>
+
+        {
+          sponsorsData && sponsorsData.length > 0 ? (
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b-2 border-amber-400/30">
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Nombre
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Slug
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Website
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Estado
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-amber-400/10">
+                {sponsorsData.map((s) => (
+                  <tr class="hover:bg-amber-400/5 transition-colors">
+                    <td class="p-4 text-amber-100 font-bold">{s.name}</td>
+                    <td class="p-4 text-amber-100/70 font-mono text-sm">
+                      {s.slug}
+                    </td>
+                    <td class="p-4 text-amber-100/60 text-sm">
+                      {s.website_url ? (
+                        <a
+                          href={s.website_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="hover:text-amber-300 underline"
+                        >
+                          {s.website_url.replace(/https?:\/\/(www\.)?/, "")}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td class="p-4">
+                      <span
+                        class={`px-2 py-1 rounded text-xs font-bold uppercase ${s.active ? "bg-green-400/20 text-green-300 border border-green-400/40" : "bg-red-400/20 text-red-300 border border-red-400/40"}`}
+                      >
+                        {s.active ? "Activo" : "Inactivo"}
+                      </span>
+                    </td>
+                    <td class="p-4">
+                      <div class="flex gap-2">
+                        <button
+                          data-sponsor-id={s.id}
+                          data-sponsor-name={s.name}
+                          data-sponsor-slug={s.slug}
+                          data-sponsor-website={s.website_url || ""}
+                          data-sponsor-description={s.description || ""}
+                          data-sponsor-active={s.active}
+                          class="btn-edit-sponsor px-3 py-1 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 font-bold uppercase text-xs rounded transition-all"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          class="delete-sponsor-btn px-3 py-1 bg-red-900/30 hover:bg-red-900/50 border border-red-500/50 text-red-200 rounded text-xs font-bold uppercase transition-all"
+                          data-sponsor-id={s.id}
+                          data-sponsor-name={s.name}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div class="text-center py-12">
+              <p class="text-amber-200/60 text-lg uppercase tracking-widest">
+                No hay sponsors creados
+              </p>
+            </div>
+          )
+        }
+      </div>
+
+      <!-- Modal para Crear Usuario -->
+      <div
+        id="user-modal"
+        class="hidden fixed inset-0 z-50 items-center justify-center p-4"
+      >
+        <div
+          id="user-modal-overlay"
+          class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        >
+        </div>
+        <div
+          class="relative z-10 bg-[#0a0011] border border-amber-400/40 rounded-2xl shadow-[0_0_60px_rgba(251,191,36,0.2)] w-full max-w-md p-8"
+        >
+          <div class="flex items-center justify-between mb-6">
+            <h2
+              class="text-amber-300 font-black uppercase tracking-widest text-lg"
+            >
+              Crear Usuario
+            </h2>
+            <button
+              id="btn-close-user-modal"
+              class="text-amber-100/40 hover:text-amber-200 transition-colors text-2xl leading-none"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form id="user-form" class="space-y-4">
+            <div>
+              <label
+                for="user-name"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Nombre</label
+              >
+              <input
+                type="text"
+                id="user-name"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+                placeholder="Nombre completo"
+              />
+            </div>
+            <div>
+              <label
+                for="user-email"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Email *</label
+              >
+              <input
+                type="email"
+                id="user-email"
+                required
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+                placeholder="usuario@ejemplo.com"
+              />
+            </div>
+            <div>
+              <label
+                for="user-password"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Contraseña *</label
+              >
+              <input
+                type="password"
+                id="user-password"
+                required
+                minlength="6"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+                placeholder="Mínimo 6 caracteres"
+              />
+              <p class="text-amber-200/50 text-xs mt-1">Mínimo 6 caracteres</p>
+            </div>
+            <div>
+              <label
+                for="user-role"
+                class="block text-amber-300 font-bold text-sm mb-2">Rol *</label
+              >
+              <select
+                id="user-role"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all cursor-pointer"
+              >
+                <option value="Hacker">💻 Hacker</option>
+                <option value="Mentor">🎓 Mentor</option>
+                <option value="Sponsor">💼 Sponsor</option>
+                <option value="Admin">👑 Admin</option>
+              </select>
+            </div>
+            <div id="user-sponsor-container" class="hidden">
+              <label
+                for="user-sponsor"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Sponsor</label
+              >
+              <select
+                id="user-sponsor"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all cursor-pointer"
+              >
+                <option value="">Sin sponsor</option>
+                {
+                  sponsorsData?.map((s) => (
+                    <option value={s.id}>{s.name}</option>
+                  ))
+                }
+              </select>
+            </div>
+            <div class="flex gap-3 pt-4">
+              <button
+                type="submit"
+                class="flex-1 py-3 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300"
+              >
+                Crear Usuario
+              </button>
+              <button
+                type="button"
+                id="btn-cancel-user"
+                class="px-6 py-3 bg-black/40 hover:bg-black/60 border border-amber-400/30 text-amber-200 font-bold uppercase text-xs rounded-lg transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Modal para Crear/Editar Sponsor -->
+      <div
+        id="sponsor-modal"
+        class="hidden fixed inset-0 z-50 items-center justify-center p-4"
+      >
+        <div
+          id="sponsor-modal-overlay"
+          class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        >
+        </div>
+        <div
+          class="relative z-10 bg-[#0a0011] border border-amber-400/40 rounded-2xl shadow-[0_0_60px_rgba(251,191,36,0.2)] w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto"
+        >
+          <div class="flex items-center justify-between mb-6">
+            <h2
+              id="sponsor-modal-title"
+              class="text-amber-300 font-black uppercase tracking-widest text-lg"
+            >
+              Crear Sponsor
+            </h2>
+            <button
+              id="btn-close-sponsor-modal"
+              class="text-amber-100/40 hover:text-amber-200 transition-colors text-2xl leading-none"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form id="sponsor-form" class="space-y-4">
+            <input type="hidden" id="sponsor-id" />
+            <div>
+              <label
+                for="sponsor-name"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Nombre *</label
+              >
+              <input
+                type="text"
+                id="sponsor-name"
+                required
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+              />
+            </div>
+            <div>
+              <label
+                for="sponsor-slug"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Slug (identificador único) *</label
+              >
+              <input
+                type="text"
+                id="sponsor-slug"
+                required
+                pattern="[a-z0-9-]+"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono"
+                placeholder="empresa-ejemplo"
+              />
+              <p class="text-amber-200/50 text-xs mt-1">
+                Solo letras minúsculas, números y guiones
+              </p>
+            </div>
+            <div>
+              <label
+                for="sponsor-website"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Website</label
+              >
+              <input
+                type="url"
+                id="sponsor-website"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+                placeholder="https://ejemplo.com"
+              />
+            </div>
+            <div>
+              <label
+                for="sponsor-description"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Descripción</label
+              >
+              <textarea
+                id="sponsor-description"
+                rows="3"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all resize-none"
+              ></textarea>
+            </div>
+            <div>
+              <label
+                for="sponsor-logo"
+                class="block text-amber-300 font-bold text-sm mb-2"
+                >Logo</label
+              >
+              <input
+                type="file"
+                id="sponsor-logo"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-amber-400/20 file:text-amber-300 hover:file:bg-amber-400/30 file:cursor-pointer"
+              />
+              <p class="text-amber-200/50 text-xs mt-1">
+                JPG, PNG o WEBP (máximo 5MB)
+              </p>
+            </div>
+            <div class="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="sponsor-active"
+                checked
+                class="w-5 h-5 bg-black/50 border-2 border-amber-400/30 rounded cursor-pointer"
+              />
+              <label for="sponsor-active" class="text-amber-100 text-sm"
+                >Sponsor activo</label
+              >
+            </div>
+            <div class="flex gap-3 pt-4">
+              <button
+                type="submit"
+                class="flex-1 py-3 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                id="btn-cancel-sponsor"
+                class="px-6 py-3 bg-black/40 hover:bg-black/60 border border-amber-400/30 text-amber-200 font-bold uppercase text-xs rounded-lg transition-all"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <div
@@ -174,9 +582,11 @@ const users = usersData?.sort((a, b) => {
       }
     });
 
-    // Manejar cambios de rol
-    const selects = document.querySelectorAll("select");
-    selects.forEach((select) => {
+    // ══════════════════════════════════════════════════════════════
+    // Gestión de Roles
+    // ══════════════════════════════════════════════════════════════
+    const roleSelects = document.querySelectorAll(".role-select");
+    roleSelects.forEach((select) => {
       select.addEventListener("change", async (e) => {
         const target = e.target as HTMLSelectElement;
         const userId = target.dataset.userId;
@@ -185,7 +595,6 @@ const users = usersData?.sort((a, b) => {
 
         if (!userId) return;
 
-        // Feedback visual inmediato
         target.style.opacity = "0.5";
         target.disabled = true;
 
@@ -198,9 +607,21 @@ const users = usersData?.sort((a, b) => {
 
           if (response.ok) {
             target.setAttribute("value", newRole);
-            // Flash verde para indicar éxito
             target.style.borderColor = "#4ade80";
             setTimeout(() => (target.style.borderColor = ""), 1000);
+
+            // Habilitar/deshabilitar selector de sponsor según el rol
+            const row = target.closest("tr");
+            const sponsorSelect = row?.querySelector(
+              ".sponsor-select",
+            ) as HTMLSelectElement;
+            if (sponsorSelect) {
+              sponsorSelect.disabled = newRole !== "Sponsor";
+              sponsorSelect.dataset.currentRole = newRole;
+              if (newRole !== "Sponsor") {
+                sponsorSelect.value = "";
+              }
+            }
           } else {
             const error = await response.text();
             alert(`❌ Error: ${error}`);
@@ -212,6 +633,379 @@ const users = usersData?.sort((a, b) => {
         } finally {
           target.style.opacity = "1";
           target.disabled = false;
+        }
+      });
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // Asignación de Sponsors
+    // ══════════════════════════════════════════════════════════════
+    const sponsorSelects = document.querySelectorAll(".sponsor-select");
+    sponsorSelects.forEach((select) => {
+      select.addEventListener("change", async (e) => {
+        const target = e.target as HTMLSelectElement;
+        const userId = target.dataset.userId;
+        const sponsorId = target.value || null;
+        const originalValue = target.getAttribute("value");
+
+        if (!userId) return;
+
+        target.style.opacity = "0.5";
+        target.disabled = true;
+
+        try {
+          const response = await fetch("/api/admin/assign-sponsor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId, sponsorId }),
+          });
+
+          if (response.ok) {
+            target.setAttribute("value", sponsorId || "");
+            target.style.borderColor = "#4ade80";
+            setTimeout(() => (target.style.borderColor = ""), 1000);
+          } else {
+            const error = await response.text();
+            alert(`❌ Error: ${error}`);
+            target.value = originalValue || "";
+          }
+        } catch (error) {
+          alert("❌ Error al asignar sponsor");
+          target.value = originalValue || "";
+        } finally {
+          target.style.opacity = "1";
+          target.disabled = false;
+        }
+      });
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // Modal de Usuarios
+    // ══════════════════════════════════════════════════════════════
+    const userModal = document.getElementById("user-modal");
+    const userModalOverlay = document.getElementById("user-modal-overlay");
+    const btnCreateUser = document.getElementById("btn-create-user");
+    const btnCloseUserModal = document.getElementById("btn-close-user-modal");
+    const btnCancelUser = document.getElementById("btn-cancel-user");
+    const userForm = document.getElementById("user-form") as HTMLFormElement;
+
+    const userNameInput = document.getElementById(
+      "user-name",
+    ) as HTMLInputElement;
+    const userEmailInput = document.getElementById(
+      "user-email",
+    ) as HTMLInputElement;
+    const userPasswordInput = document.getElementById(
+      "user-password",
+    ) as HTMLInputElement;
+    const userRoleSelect = document.getElementById(
+      "user-role",
+    ) as HTMLSelectElement;
+    const userSponsorContainer = document.getElementById(
+      "user-sponsor-container",
+    );
+    const userSponsorSelect = document.getElementById(
+      "user-sponsor",
+    ) as HTMLSelectElement;
+
+    // Mostrar/ocultar selector de sponsor según el rol
+    userRoleSelect?.addEventListener("change", () => {
+      if (userRoleSelect.value === "Sponsor") {
+        userSponsorContainer?.classList.remove("hidden");
+      } else {
+        userSponsorContainer?.classList.add("hidden");
+        userSponsorSelect.value = "";
+      }
+    });
+
+    function openUserModal() {
+      userForm.reset();
+      userSponsorContainer?.classList.add("hidden");
+      userModal?.classList.remove("hidden");
+      userModal?.classList.add("flex");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeUserModal() {
+      userModal?.classList.remove("flex");
+      userModal?.classList.add("hidden");
+      document.body.style.overflow = "";
+      userForm.reset();
+    }
+
+    btnCreateUser?.addEventListener("click", openUserModal);
+    btnCloseUserModal?.addEventListener("click", closeUserModal);
+    btnCancelUser?.addEventListener("click", closeUserModal);
+    userModalOverlay?.addEventListener("click", closeUserModal);
+
+    userForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const data = {
+        email: userEmailInput.value,
+        password: userPasswordInput.value,
+        name: userNameInput.value || undefined,
+        role: userRoleSelect.value || "Hacker",
+        sponsor_id:
+          userRoleSelect.value === "Sponsor" && userSponsorSelect.value
+            ? userSponsorSelect.value
+            : null,
+      };
+
+      try {
+        const response = await fetch("/api/admin/create-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          closeUserModal();
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`❌ Error: ${error.error || "Error desconocido"}`);
+        }
+      } catch (error) {
+        alert("❌ Error al crear el usuario");
+      }
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // Modal de Sponsors
+    // ══════════════════════════════════════════════════════════════
+    const modal = document.getElementById("sponsor-modal");
+    const modalOverlay = document.getElementById("sponsor-modal-overlay");
+    const btnCreateSponsor = document.getElementById("btn-create-sponsor");
+    const btnCloseSponsorModal = document.getElementById(
+      "btn-close-sponsor-modal",
+    );
+    const btnCancelSponsor = document.getElementById("btn-cancel-sponsor");
+    const sponsorForm = document.getElementById(
+      "sponsor-form",
+    ) as HTMLFormElement;
+    const modalTitle = document.getElementById("sponsor-modal-title");
+
+    const sponsorIdInput = document.getElementById(
+      "sponsor-id",
+    ) as HTMLInputElement;
+    const sponsorNameInput = document.getElementById(
+      "sponsor-name",
+    ) as HTMLInputElement;
+    const sponsorSlugInput = document.getElementById(
+      "sponsor-slug",
+    ) as HTMLInputElement;
+    const sponsorWebsiteInput = document.getElementById(
+      "sponsor-website",
+    ) as HTMLInputElement;
+    const sponsorDescriptionInput = document.getElementById(
+      "sponsor-description",
+    ) as HTMLTextAreaElement;
+    const sponsorActiveInput = document.getElementById(
+      "sponsor-active",
+    ) as HTMLInputElement;
+    const sponsorLogoInput = document.getElementById(
+      "sponsor-logo",
+    ) as HTMLInputElement;
+
+    function openSponsorModal(editMode = false, data: any = {}) {
+      if (modalTitle) {
+        modalTitle.textContent = editMode ? "Editar Sponsor" : "Crear Sponsor";
+      }
+
+      if (editMode && data) {
+        sponsorIdInput.value = data.id;
+        sponsorNameInput.value = data.name;
+        sponsorSlugInput.value = data.slug;
+        sponsorWebsiteInput.value = data.website || "";
+        sponsorDescriptionInput.value = data.description || "";
+        sponsorActiveInput.checked = data.active === "true";
+      } else {
+        sponsorForm.reset();
+        sponsorIdInput.value = "";
+      }
+
+      modal?.classList.remove("hidden");
+      modal?.classList.add("flex");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeSponsorModal() {
+      modal?.classList.remove("flex");
+      modal?.classList.add("hidden");
+      document.body.style.overflow = "";
+      sponsorForm.reset();
+    }
+
+    btnCreateSponsor?.addEventListener("click", () => openSponsorModal(false));
+    btnCloseSponsorModal?.addEventListener("click", closeSponsorModal);
+    btnCancelSponsor?.addEventListener("click", closeSponsorModal);
+    modalOverlay?.addEventListener("click", closeSponsorModal);
+
+    // Editar sponsor
+    const btnEditSponsors = document.querySelectorAll(".btn-edit-sponsor");
+    btnEditSponsors.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const target = e.target as HTMLButtonElement;
+        const data = {
+          id: target.dataset.sponsorId,
+          name: target.dataset.sponsorName,
+          slug: target.dataset.sponsorSlug,
+          website: target.dataset.sponsorWebsite,
+          description: target.dataset.sponsorDescription,
+          active: target.dataset.sponsorActive,
+        };
+        openSponsorModal(true, data);
+      });
+    });
+
+    // Submit form
+    sponsorForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const sponsorId = sponsorIdInput.value;
+      const isEdit = !!sponsorId;
+
+      // Subir logo si se seleccionó uno
+      let logoPath = null;
+      if (sponsorLogoInput.files && sponsorLogoInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append("file", sponsorLogoInput.files[0]);
+
+        try {
+          const uploadResponse = await fetch("/api/admin/sponsors/upload-logo", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            logoPath = uploadData.path;
+          } else {
+            const error = await uploadResponse.text();
+            alert(`❌ Error al subir logo: ${error}`);
+            return;
+          }
+        } catch (error) {
+          alert("❌ Error al subir el logo");
+          return;
+        }
+      }
+
+      const data = {
+        id: sponsorId || undefined,
+        name: sponsorNameInput.value,
+        slug: sponsorSlugInput.value,
+        website_url: sponsorWebsiteInput.value || null,
+        description: sponsorDescriptionInput.value || null,
+        active: sponsorActiveInput.checked,
+        logo_path: logoPath,
+      };
+
+      try {
+        const endpoint = isEdit
+          ? "/api/admin/sponsors/update"
+          : "/api/admin/sponsors/create";
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+          closeSponsorModal();
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`❌ Error: ${error.error || "Error desconocido"}`);
+        }
+      } catch (error) {
+        alert("❌ Error al guardar el sponsor");
+      }
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // Eliminación de Usuarios
+    // ══════════════════════════════════════════════════════════════
+    const deleteUserBtns = document.querySelectorAll(".delete-user-btn");
+    deleteUserBtns.forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const target = e.target as HTMLButtonElement;
+        const userId = target.dataset.userId;
+        const userName = target.dataset.userName;
+
+        if (!userId) return;
+
+        const confirmed = confirm(
+          `¿Estás seguro de que quieres eliminar al usuario "${userName}"?\n\nEsta acción no se puede deshacer.`,
+        );
+
+        if (!confirmed) return;
+
+        target.disabled = true;
+        target.style.opacity = "0.5";
+
+        try {
+          const response = await fetch("/api/admin/delete-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId }),
+          });
+
+          if (response.ok) {
+            window.location.reload();
+          } else {
+            const error = await response.json();
+            alert(`❌ Error: ${error.error || "Error desconocido"}`);
+          }
+        } catch (error) {
+          alert("❌ Error al eliminar el usuario");
+        } finally {
+          target.disabled = false;
+          target.style.opacity = "1";
+        }
+      });
+    });
+
+    // ══════════════════════════════════════════════════════════════
+    // Eliminación de Sponsors
+    // ══════════════════════════════════════════════════════════════
+    const deleteSponsorBtns = document.querySelectorAll(".delete-sponsor-btn");
+    deleteSponsorBtns.forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        const target = e.target as HTMLButtonElement;
+        const sponsorId = target.dataset.sponsorId;
+        const sponsorName = target.dataset.sponsorName;
+
+        if (!sponsorId) return;
+
+        const confirmed = confirm(
+          `¿Estás seguro de que quieres eliminar el sponsor "${sponsorName}"?\n\nEsta acción no se puede deshacer y eliminará su logo.`,
+        );
+
+        if (!confirmed) return;
+
+        target.disabled = true;
+        target.style.opacity = "0.5";
+
+        try {
+          const response = await fetch("/api/admin/sponsors/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: sponsorId }),
+          });
+
+          if (response.ok) {
+            window.location.reload();
+          } else {
+            const error = await response.json();
+            alert(`❌ Error: ${error.error || "Error desconocido"}`);
+          }
+        } catch (error) {
+          alert("❌ Error al eliminar el sponsor");
+        } finally {
+          target.disabled = false;
+          target.style.opacity = "1";
         }
       });
     });
