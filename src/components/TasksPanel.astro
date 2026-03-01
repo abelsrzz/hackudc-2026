@@ -1,0 +1,661 @@
+---
+import { createClient } from "@supabase/supabase-js";
+import Chat from "./Chat.astro";
+
+interface Props {
+  projectId?: number | null;
+  userId: string;
+  userRole: string;
+  canManage: boolean;
+  instanceId?: string;
+}
+
+const {
+  projectId = null,
+  userId,
+  userRole,
+  canManage,
+  instanceId = "global",
+} = Astro.props;
+
+const supabase = createClient(
+  import.meta.env.SUPABASE_URL,
+  import.meta.env.SUPABASE_SERVICE_ROLE_KEY,
+  { auth: { autoRefreshToken: false, persistSession: false } },
+);
+
+let query = supabase
+  .from("tasks")
+  .select(
+    `
+    id, created_at, updated_at, title, description, status, created_by, project_id,
+    creator:profiles!tasks_created_by_fkey (id, name),
+    subtasks (
+      id, title, done, created_at, assigned_to,
+      assigned:profiles!subtasks_assigned_to_fkey (id, name)
+    )
+  `,
+  )
+  .order("updated_at", { ascending: false });
+
+if (projectId) {
+  query = query.eq("project_id", projectId);
+} else {
+  query = query.is("project_id", null);
+}
+
+const { data: tasks } = await query;
+const allTasks = tasks ?? [];
+
+const isAdmin = userRole?.toLowerCase() === "admin";
+
+function statusLabel(s: string) {
+  const map: Record<string, string> = {
+    pending: "Pendiente",
+    in_progress: "En progreso",
+    done: "Completada",
+    cancel: "Cancelada",
+  };
+  return map[s] ?? s;
+}
+
+function statusColors(s: string) {
+  const map: Record<string, string> = {
+    pending: "bg-amber-400/20 border-amber-400/40 text-amber-300",
+    in_progress: "bg-blue-400/20 border-blue-400/40 text-blue-300",
+    done: "bg-green-400/20 border-green-400/40 text-green-300",
+    cancel: "bg-red-400/10 border-red-400/20 text-red-400/70",
+  };
+  return map[s] ?? "bg-amber-400/10 border-amber-400/20 text-amber-200";
+}
+
+function timeAgo(dateStr: string) {
+  const date = new Date(dateStr);
+  const madridTime = new Date(
+    date.toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
+  );
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
+  );
+  const diff = Math.floor((now.getTime() - madridTime.getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+const counts = {
+  all: allTasks.length,
+  pending: allTasks.filter((t: any) => t.status === "pending").length,
+  in_progress: allTasks.filter((t: any) => t.status === "in_progress").length,
+  done: allTasks.filter((t: any) => t.status === "done").length,
+  cancel: allTasks.filter((t: any) => t.status === "cancel").length,
+};
+---
+
+<div id={`tasks-panel-${instanceId}`} class="tasks-panel space-y-5">
+  {/* ── Crear tarea ── */}
+  {
+    canManage && (
+      <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 overflow-hidden">
+        <button
+          id={`toggle-create-${instanceId}`}
+          type="button"
+          class="w-full px-6 py-4 flex items-center justify-between text-left"
+        >
+          <span class="text-amber-300 font-black uppercase tracking-widest text-xs">
+            + Nueva tarea
+          </span>
+          <span
+            id={`toggle-icon-${instanceId}`}
+            class="text-amber-400/60 text-lg font-bold transition-transform duration-200"
+          >
+            ▼
+          </span>
+        </button>
+        <div
+          id={`create-form-${instanceId}`}
+          class="hidden px-6 pb-5 border-t border-amber-400/15"
+        >
+          <form
+            action="/api/tasks/create"
+            method="post"
+            class="flex flex-col gap-3 pt-5"
+          >
+            {projectId && (
+              <input type="hidden" name="project_id" value={projectId} />
+            )}
+            <input
+              type="text"
+              name="title"
+              placeholder="Título de la tarea…"
+              required
+              maxlength={120}
+              class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+            />
+            <textarea
+              name="description"
+              placeholder="Descripción (opcional)…"
+              rows={3}
+              class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none align-top"
+            />
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Crear tarea
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    )
+  }
+
+  {/* ── Filtros ── */}
+  <div class="flex flex-wrap gap-2">
+    {
+      (
+        [
+          ["all", "Todas"],
+          ["pending", "Pendientes"],
+          ["in_progress", "En progreso"],
+          ["done", "Completadas"],
+          ["cancel", "Canceladas"],
+        ] as [string, string][]
+      ).map(([key, label]) => (
+        <button
+          type="button"
+          data-filter={key}
+          data-panel={instanceId}
+          class={`tasks-filter-btn px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border transition-all duration-200 ${
+            key === "all"
+              ? "bg-amber-400/30 border-amber-400/60 text-amber-200"
+              : "bg-black/30 border-amber-400/15 text-amber-400/50 hover:border-amber-400/40 hover:text-amber-300"
+          }`}
+        >
+          {label}
+          <span class="ml-1.5 opacity-70">
+            ({counts[key as keyof typeof counts]})
+          </span>
+        </button>
+      ))
+    }
+  </div>
+
+  {/* ── Lista de tareas ── */}
+  <div class="space-y-5">
+    {
+      allTasks.length === 0 ? (
+        <div class="text-center py-16 text-amber-100/30 text-sm italic">
+          No hay tareas aún.{canManage && " ¡Crea la primera!"}
+        </div>
+      ) : (
+        allTasks.map((task: any) => {
+          const subtasks = task.subtasks ?? [];
+          const doneCount = subtasks.filter((s: any) => s.done).length;
+          const isCreator = task.created_by === userId;
+          const progress =
+            subtasks.length > 0
+              ? Math.round((doneCount / subtasks.length) * 100)
+              : null;
+
+          return (
+            <div
+              class={`task-card bg-black/50 backdrop-blur-sm rounded-xl border overflow-hidden transition-all duration-300 ${
+                task.status === "done"
+                  ? "border-green-400/20 opacity-70"
+                  : task.status === "cancel"
+                    ? "border-red-400/15 opacity-50"
+                    : task.status === "in_progress"
+                      ? "border-blue-400/30 shadow-[0_0_20px_rgba(96,165,250,0.08)]"
+                      : "border-amber-400/25 shadow-[0_0_20px_rgba(251,191,36,0.06)]"
+              }`}
+              data-status={task.status}
+              data-panel={instanceId}
+            >
+              {/* Header */}
+              <div class="px-5 py-4 flex flex-wrap items-start justify-between gap-3">
+                <div class="flex-1 min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 mb-1">
+                    <span
+                      class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest border ${statusColors(task.status)}`}
+                    >
+                      {statusLabel(task.status)}
+                    </span>
+                    <span class="text-amber-100/25 text-xs">
+                      por {(task.creator as any)?.name ?? "Usuario"} · hace{" "}
+                      {timeAgo(task.updated_at)}
+                    </span>
+                  </div>
+                  <h3 class="text-amber-200 font-black text-base uppercase tracking-wide break-words">
+                    {task.title}
+                  </h3>
+                  {subtasks.length > 0 && (
+                    <p class="text-amber-100/40 text-xs mt-1">
+                      {doneCount}/{subtasks.length} subtareas completadas
+                    </p>
+                  )}
+                </div>
+
+                {/* Acciones rápidas */}
+                <div class="flex flex-wrap gap-2 shrink-0">
+                  {canManage && (
+                    <form
+                      action="/api/tasks/update"
+                      method="post"
+                      class="flex gap-1"
+                      data-status-form
+                    >
+                      <input type="hidden" name="task_id" value={task.id} />
+                      <input
+                        type="hidden"
+                        name="status"
+                        value={task.status}
+                        data-status-input
+                      />
+                      {projectId && (
+                        <input
+                          type="hidden"
+                          name="project_id"
+                          value={projectId}
+                        />
+                      )}
+                      <div class="flex gap-1">
+                        {["pending", "in_progress", "done", "cancel"].map(
+                          (s) => (
+                            <button
+                              type="button"
+                              data-status-btn={s}
+                              class={`px-2 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all duration-200 ${
+                                task.status === s
+                                  ? "bg-amber-400/30 border-amber-400/60 text-amber-200"
+                                  : "bg-black/40 border-amber-400/15 text-amber-400/50 hover:border-amber-400/40 hover:text-amber-300"
+                              }`}
+                            >
+                              {statusLabel(s)}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Toggle detalles */}
+                  <button
+                    type="button"
+                    class="toggle-task-details px-3 py-1.5 bg-black/40 border border-amber-400/20 hover:border-amber-400/40 text-amber-400/60 hover:text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                    data-task-id={task.id}
+                    data-panel={instanceId}
+                  >
+                    ▼ Ver
+                  </button>
+
+                  {/* Eliminar */}
+                  {canManage && (isCreator || isAdmin) && (
+                    <form
+                      action="/api/tasks/delete"
+                      method="post"
+                      onsubmit="return confirm('¿Eliminar esta tarea?')"
+                    >
+                      <input type="hidden" name="task_id" value={task.id} />
+                      {projectId && (
+                        <input
+                          type="hidden"
+                          name="project_id"
+                          value={projectId}
+                        />
+                      )}
+                      <button
+                        type="submit"
+                        class="px-3 py-1.5 bg-black/40 hover:bg-red-900/30 border border-amber-400/10 hover:border-red-500/40 text-amber-200/30 hover:text-red-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+
+              {/* Barra de progreso */}
+              {progress !== null && (
+                <div class="px-5 pb-3">
+                  <div class="w-full h-1 bg-amber-400/10 rounded-full overflow-hidden">
+                    <div
+                      class={`h-full rounded-full transition-all duration-500 ${progress === 100 ? "bg-green-400" : "bg-amber-400"}`}
+                      style={`width: ${progress}%`}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Detalles expandibles */}
+              <div
+                class="task-details-panel hidden border-t border-amber-400/15"
+                data-task-id={task.id}
+                data-panel={instanceId}
+              >
+                <div class="px-5 py-4 space-y-4">
+                  {/* Descripción editable o solo lectura */}
+                  {canManage ? (
+                    <div>
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                        Descripción
+                      </p>
+                      <form
+                        action="/api/tasks/update"
+                        method="post"
+                        class="flex flex-col gap-2"
+                      >
+                        <input type="hidden" name="task_id" value={task.id} />
+                        <input
+                          type="hidden"
+                          name="status"
+                          value={task.status}
+                        />
+                        {projectId && (
+                          <input
+                            type="hidden"
+                            name="project_id"
+                            value={projectId}
+                          />
+                        )}
+                        <input
+                          type="text"
+                          name="title"
+                          value={task.title}
+                          required
+                          class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-200 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono"
+                        />
+                        <textarea
+                          name="description"
+                          rows={3}
+                          class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100/80 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono resize-none placeholder-amber-100/20 align-top"
+                          placeholder="Sin descripción…"
+                        >
+                          {task.description ?? ""}
+                        </textarea>
+                        <div class="flex justify-end">
+                          <button
+                            type="submit"
+                            class="px-5 py-1.5 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
+                          >
+                            Guardar cambios
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    task.description && (
+                      <div>
+                        <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                          Descripción
+                        </p>
+                        <p class="text-amber-100/70 text-sm bg-black/20 rounded px-3 py-2 whitespace-pre-wrap">
+                          {task.description}
+                        </p>
+                      </div>
+                    )
+                  )}
+
+                  {/* Subtareas */}
+                  <div class="pt-4 border-t border-amber-400/15">
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-3">
+                      Subtareas ({doneCount}/{subtasks.length})
+                    </p>
+
+                    {subtasks.length === 0 ? (
+                      <p class="text-amber-100/25 text-sm italic mb-3">
+                        Sin subtareas aún.
+                      </p>
+                    ) : (
+                      <ul class="space-y-2 mb-3">
+                        {subtasks
+                          .slice()
+                          .sort(
+                            (a: any, b: any) => Number(a.done) - Number(b.done),
+                          )
+                          .map((sub: any) => {
+                            const isAssignedToMe = sub.assigned_to === userId;
+                            return (
+                              <li class="flex items-start gap-3 group/sub bg-black/20 p-2 rounded-lg border border-amber-400/10 hover:border-amber-400/20 transition-all">
+                                <form
+                                  action="/api/tasks/subtasks/update"
+                                  method="post"
+                                  class="flex items-start gap-3 flex-1"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="subtask_id"
+                                    value={sub.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="done"
+                                    value={sub.done ? "false" : "true"}
+                                  />
+                                  {projectId && (
+                                    <input
+                                      type="hidden"
+                                      name="project_id"
+                                      value={projectId}
+                                    />
+                                  )}
+                                  <button
+                                    type="submit"
+                                    class={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
+                                      sub.done
+                                        ? "bg-green-400/30 border-green-400/60 text-green-300"
+                                        : "bg-transparent border-amber-400/30 hover:border-amber-400/60"
+                                    }`}
+                                  >
+                                    {sub.done && <span class="text-xs">✓</span>}
+                                  </button>
+                                  <div class="flex-1">
+                                    <span
+                                      class={`text-sm block transition-all ${sub.done ? "line-through text-amber-100/30" : "text-amber-100/80"}`}
+                                    >
+                                      {sub.title}
+                                    </span>
+                                    {sub.assigned_to && (
+                                      <span class="text-xs text-amber-300/50 mt-1 block">
+                                        Asignado a:{" "}
+                                        {(sub.assigned as any)?.name ||
+                                          "Usuario"}
+                                      </span>
+                                    )}
+                                  </div>
+                                </form>
+
+                                <div class="flex gap-1 shrink-0">
+                                  <form
+                                    action="/api/tasks/subtasks/assign"
+                                    method="post"
+                                  >
+                                    <input
+                                      type="hidden"
+                                      name="subtask_id"
+                                      value={sub.id}
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="action"
+                                      value={
+                                        isAssignedToMe ? "unassign" : "assign"
+                                      }
+                                    />
+                                    {projectId && (
+                                      <input
+                                        type="hidden"
+                                        name="project_id"
+                                        value={projectId}
+                                      />
+                                    )}
+                                    <button
+                                      type="submit"
+                                      class={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border transition-all ${
+                                        isAssignedToMe
+                                          ? "bg-amber-400/20 border-amber-400/40 text-amber-300 hover:bg-amber-400/30"
+                                          : "bg-black/40 border-amber-400/20 text-amber-400/60 hover:border-amber-400/40 hover:text-amber-300"
+                                      }`}
+                                      title={
+                                        isAssignedToMe
+                                          ? "Desinscribirme"
+                                          : "Inscribirme"
+                                      }
+                                    >
+                                      {isAssignedToMe ? "✓" : "+"}
+                                    </button>
+                                  </form>
+                                  {canManage && (
+                                    <form
+                                      action="/api/tasks/subtasks/delete"
+                                      method="post"
+                                      class="opacity-0 group-hover/sub:opacity-100 transition-opacity"
+                                    >
+                                      <input
+                                        type="hidden"
+                                        name="subtask_id"
+                                        value={sub.id}
+                                      />
+                                      {projectId && (
+                                        <input
+                                          type="hidden"
+                                          name="project_id"
+                                          value={projectId}
+                                        />
+                                      )}
+                                      <button
+                                        type="submit"
+                                        class="text-amber-400/30 hover:text-red-400 text-xs px-1 transition-colors"
+                                        title="Eliminar subtarea"
+                                      >
+                                        ✕
+                                      </button>
+                                    </form>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                      </ul>
+                    )}
+
+                    {canManage && (
+                      <form
+                        action="/api/tasks/subtasks/create"
+                        method="post"
+                        class="flex gap-2"
+                      >
+                        <input type="hidden" name="task_id" value={task.id} />
+                        {projectId && (
+                          <input
+                            type="hidden"
+                            name="project_id"
+                            value={projectId}
+                          />
+                        )}
+                        <input
+                          type="text"
+                          name="title"
+                          placeholder="Nueva subtarea…"
+                          required
+                          maxlength={200}
+                          class="flex-1 px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/25 text-sm focus:outline-none focus:border-amber-400/40 transition-all font-mono"
+                        />
+                        <button
+                          type="submit"
+                          class="px-4 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap"
+                        >
+                          + Añadir
+                        </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* Chat de la tarea */}
+                  <div class="pt-4 border-t border-amber-400/15">
+                    <Chat channel={`task-${task.id}`} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })
+      )
+    }
+  </div>
+</div>
+
+<script define:vars={{ instanceId }}>
+  const panel = document.getElementById(`tasks-panel-${instanceId}`);
+
+  // Toggle create form
+  const toggleBtn = document.getElementById(`toggle-create-${instanceId}`);
+  const createFormEl = document.getElementById(`create-form-${instanceId}`);
+  const toggleIconEl = document.getElementById(`toggle-icon-${instanceId}`);
+  toggleBtn?.addEventListener("click", () => {
+    const isHidden = createFormEl?.classList.contains("hidden");
+    createFormEl?.classList.toggle("hidden");
+    if (toggleIconEl)
+      toggleIconEl.style.transform = isHidden ? "rotate(180deg)" : "";
+  });
+
+  // Filter tabs
+  const taskCards = panel?.querySelectorAll(
+    `.task-card[data-panel="${instanceId}"]`,
+  );
+  const filterBtns = panel?.querySelectorAll(
+    `.tasks-filter-btn[data-panel="${instanceId}"]`,
+  );
+
+  function applyFilter(filter) {
+    taskCards?.forEach((card) => {
+      card.style.display =
+        filter === "all" || card.dataset.status === filter ? "" : "none";
+    });
+    filterBtns?.forEach((btn) => {
+      const active = btn.dataset.filter === filter;
+      btn.classList.toggle("bg-amber-400/30", active);
+      btn.classList.toggle("border-amber-400/60", active);
+      btn.classList.toggle("text-amber-200", active);
+      btn.classList.toggle("bg-black/30", !active);
+      btn.classList.toggle("border-amber-400/15", !active);
+      btn.classList.toggle("text-amber-400/50", !active);
+    });
+  }
+
+  filterBtns?.forEach((btn) => {
+    btn.addEventListener("click", () => applyFilter(btn.dataset.filter));
+  });
+
+  // Toggle task details accordion
+  panel
+    ?.querySelectorAll(`.toggle-task-details[data-panel="${instanceId}"]`)
+    .forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const taskId = btn.dataset.taskId;
+        const details = panel.querySelector(
+          `.task-details-panel[data-task-id="${taskId}"][data-panel="${instanceId}"]`,
+        );
+        const isOpen = !details?.classList.contains("hidden");
+        details?.classList.toggle("hidden");
+        btn.textContent = isOpen ? "▼ Ver" : "▲ Cerrar";
+      });
+    });
+
+  // Status buttons
+  panel?.querySelectorAll("[data-status-form]").forEach((form) => {
+    const statusInput = form.querySelector("[data-status-input]");
+    form.querySelectorAll("[data-status-btn]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const newStatus = btn.getAttribute("data-status-btn");
+        if (statusInput && newStatus) {
+          statusInput.value = newStatus;
+          form.submit();
+        }
+      });
+    });
+  });
+</script>

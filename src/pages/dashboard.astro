@@ -2,6 +2,8 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import DashboardCard from "../components/DashboardCard.astro";
+import ShowSponsors from "../components/ShowSponsors.astro";
+import ShowCollaborators from "../components/ShowCollaborators.astro";
 import SignoutCard from "../components/SignoutCard.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabase } from "../lib/supabase";
@@ -166,14 +168,6 @@ const isMentor = profile?.role?.toLowerCase() === "mentor";
           linkText="Ver info"
         />
 
-        <DashboardCard
-          href="/sponsors"
-          emoji="🤝"
-          title="Patrocinadores"
-          description="Conoce a las empresas que hacen posible HackUDC."
-          linkText="Ver sponsors"
-        />
-
         {
           (isMentor || isAdmin) && (
             <DashboardCard
@@ -202,8 +196,9 @@ const isMentor = profile?.role?.toLowerCase() === "mentor";
 
         <SignoutCard />
       </div>
+      <ShowSponsors />
+      <ShowCollaborators />
+      <Footer />
     </div>
-
-    <Footer />
   </main>
 </Layout>

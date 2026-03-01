@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import { supabaseAdmin } from "../../../../lib/supabase";
+import { canManageTasks } from "../../../../lib/tasks-auth";
 
-export const POST: APIRoute = async ({ request, cookies, redirect }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   const accessToken = cookies.get("sb-access-token")?.value;
   if (!accessToken) return new Response("No autenticado", { status: 401 });
 
@@ -12,22 +13,17 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (userError || !user)
     return new Response("No autenticado", { status: 401 });
 
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = profile?.role?.toLowerCase();
-  if (role !== "mentor" && role !== "admin")
-    return new Response("No autorizado", { status: 403 });
-
   const body = await request.formData();
   const subtaskId = body.get("subtask_id")?.toString();
   const done = body.get("done")?.toString();
   const title = body.get("title")?.toString().trim();
+  const projectIdRaw = body.get("project_id")?.toString();
+  const projectId = projectIdRaw ? Number(projectIdRaw) : null;
 
   if (!subtaskId) return new Response("subtask_id requerido", { status: 400 });
+
+  const allowed = await canManageTasks(user.id, projectId);
+  if (!allowed) return new Response("No autorizado", { status: 403 });
 
   const updates: Record<string, unknown> = {};
   if (done !== undefined) updates.done = done === "true";
@@ -40,5 +36,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   if (error) return new Response(error.message, { status: 500 });
 
-  return redirect("/tasks");
+  const referer =
+    request.headers.get("referer") || (projectId ? "/projects" : "/tasks");
+  return Response.redirect(referer, 303);
 };

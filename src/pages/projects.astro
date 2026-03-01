@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import Chat from "../components/Chat.astro";
+import TasksPanel from "../components/TasksPanel.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabaseAdmin } from "../lib/supabase";
 import UpvoteButton from "../components/UpvoteButton.astro";
@@ -481,6 +482,20 @@ if (userProjectId) {
                     {/* Chat del proyecto */}
                     <div class="mt-2 pt-6 border-t border-amber-400/15">
                       <Chat channel={String(userProjectId)} />
+                    </div>
+
+                    {/* Tareas del proyecto */}
+                    <div class="mt-2 pt-6 border-t border-amber-400/15">
+                      <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-4 font-bold">
+                        Tareas del proyecto
+                      </p>
+                      <TasksPanel
+                        projectId={userProjectId}
+                        userId={user.id}
+                        userRole={profile?.role ?? ""}
+                        canManage={true}
+                        instanceId={String(userProjectId)}
+                      />
                     </div>
                   </div>
                 </section>
