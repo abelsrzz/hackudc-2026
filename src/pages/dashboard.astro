@@ -34,6 +34,7 @@ const { data: profile } = await supabase
   .single();
 
 const isAdmin = profile?.role === "admin";
+const isMentor = profile?.role === "mentor";
 ---
 
 <Layout title="Dashboard — HackUDC">
@@ -190,6 +191,27 @@ const isAdmin = profile?.role === "admin";
             Ver proyectos →
           </span>
         </a>
+
+        {/* Need Help — solo para mentores y admins */}
+        {
+          (isMentor || isAdmin) && (
+            <a
+              href="/needhelp"
+              class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-blue-400/20 hover:border-blue-400/50 shadow-[0_0_20px_rgba(96,165,250,0.05)] hover:shadow-[0_0_25px_rgba(96,165,250,0.2)] transition-all duration-300 hover:scale-[1.02]"
+            >
+              <div class="text-3xl">🙋</div>
+              <h2 class="text-blue-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
+                Need Help
+              </h2>
+              <p class="text-amber-100/50 text-sm leading-relaxed">
+                Gestiona las solicitudes de ayuda de los equipos.
+              </p>
+              <span class="mt-auto text-blue-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-blue-300 transition-colors">
+                Ver solicitudes →
+              </span>
+            </a>
+          )
+        }
 
         <!-- Información -->
         <a

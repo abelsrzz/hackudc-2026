@@ -1,0 +1,504 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabaseAdmin } from "../lib/supabase";
+
+// Auth
+const accessToken = Astro.cookies.get("sb-access-token");
+if (!accessToken) return Astro.redirect("/signin");
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return Astro.redirect("/signin");
+
+// Solo mentores (y admins pueden ver también)
+const { data: profile } = await supabaseAdmin
+  .from("profiles")
+  .select("role, name")
+  .eq("id", user.id)
+  .single();
+
+const role = profile?.role?.toLowerCase();
+const isMentor = role === "mentor";
+const isAdmin = role === "admin";
+
+if (!isMentor && !isAdmin) {
+  return Astro.redirect("/dashboard");
+}
+
+const errorMsg = Astro.url.searchParams.get("error");
+
+// Obtener todas las solicitudes activas con info completa
+const { data: requests } = await supabaseAdmin
+  .from("assistance_requests")
+  .select(
+    `
+    id,
+    created_at,
+    status,
+    request,
+    mentor_response,
+    assigned_mentor,
+    mentor_profile:profiles!assistance_requests_assigned_mentor_fkey (
+      id,
+      name
+    ),
+    projects (
+      id,
+      name,
+      sede,
+      challenges (
+        id,
+        title
+      ),
+      project_member (
+        profiles (
+          id,
+          name
+        )
+      )
+    )
+  `,
+  )
+  .in("status", ["pending", "assigned"])
+  .order("created_at", { ascending: true });
+
+// Solicitudes resueltas recientes (últimas 10)
+const { data: resolvedRequests } = await supabaseAdmin
+  .from("assistance_requests")
+  .select(
+    `
+    id,
+    created_at,
+    status,
+    request,
+    mentor_response,
+    assigned_mentor,
+    mentor_profile:profiles!assistance_requests_assigned_mentor_fkey (
+      id,
+      name
+    ),
+    projects (
+      id,
+      name
+    )
+  `,
+  )
+  .in("status", ["done", "cancel"])
+  .order("created_at", { ascending: false })
+  .limit(10);
+
+const pending = requests?.filter((r: any) => r.status === "pending") ?? [];
+const assigned = requests?.filter((r: any) => r.status === "assigned") ?? [];
+
+function timeAgo(dateStr: string) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+---
+
+<Layout title="Need Help — HackUDC">
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-12 pb-16 px-4"
+    >
+      <!-- Cabecera -->
+      <div class="w-full max-w-5xl flex items-center justify-between mb-10">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
+        >
+          ← Dashboard
+        </a>
+        <a
+          href="/profile"
+          class="flex items-center gap-2 px-4 py-2 bg-black/40 hover:bg-black/60 border border-amber-400/30 hover:border-amber-400/60 text-amber-200 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider"
+        >
+          <span
+            class="w-6 h-6 rounded-full bg-amber-400/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xs font-black"
+          >
+            {user.email?.charAt(0).toUpperCase()}
+          </span>
+          Mi Perfil
+        </a>
+      </div>
+
+      <!-- Título -->
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-2 text-center"
+      >
+        Need Help
+      </h1>
+      <p class="text-amber-100/50 mb-2 text-center text-sm tracking-wide">
+        Solicitudes de ayuda de los equipos participantes
+      </p>
+
+      <!-- Contadores -->
+      <div class="flex gap-4 mb-10">
+        <span
+          class="px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-300 text-xs font-bold"
+        >
+          {pending.length} pendientes
+        </span>
+        <span
+          class="px-3 py-1 rounded-full bg-blue-400/10 border border-blue-400/30 text-blue-300 text-xs font-bold"
+        >
+          {assigned.length} asignadas
+        </span>
+      </div>
+
+      {
+        errorMsg && (
+          <div class="w-full max-w-5xl mb-6 px-5 py-3 rounded-lg border border-red-500/40 bg-red-900/20 text-red-300 text-sm font-medium">
+            ⚠ {decodeURIComponent(errorMsg)}
+          </div>
+        )
+      }
+
+      <div class="w-full max-w-5xl space-y-10">
+        {/* ── Pendientes ── */}
+        <section>
+          <h2
+            class="text-amber-200/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2"
+          >
+            <span
+              class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block"
+            ></span>
+            Pendientes ({pending.length})
+          </h2>
+
+          {
+            pending.length === 0 ? (
+              <div class="text-center py-10 text-amber-100/30 text-sm italic">
+                No hay solicitudes pendientes 🎉
+              </div>
+            ) : (
+              <div class="space-y-4">
+                {pending.map((r: any) => (
+                  <div class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/30 shadow-[0_0_20px_rgba(251,191,36,0.08)] overflow-hidden">
+                    <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
+                      <div class="flex items-center gap-3">
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 font-bold uppercase tracking-widest">
+                          Pendiente
+                        </span>
+                        <span class="text-amber-100/30 text-xs">
+                          hace {timeAgo(r.created_at)} ·{" "}
+                          {new Date(r.created_at).toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {isMentor && (
+                        <form action="/api/assistance/assign" method="post">
+                          <input type="hidden" name="request_id" value={r.id} />
+                          <button
+                            type="submit"
+                            class="px-5 py-2 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_12px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                          >
+                            Asignarme
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                    <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Info del proyecto */}
+                      <div class="md:col-span-1 space-y-2">
+                        <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold">
+                          Proyecto
+                        </p>
+                        <p class="text-amber-200 font-black text-base uppercase tracking-wide">
+                          {r.projects?.name ?? "—"}
+                        </p>
+                        {r.projects?.challenges && (
+                          <p class="text-amber-300/70 text-xs flex items-center gap-1">
+                            <span>🏆</span> {r.projects.challenges.title}
+                          </p>
+                        )}
+                        {r.projects?.sede && (
+                          <p class="text-amber-100/40 text-xs flex items-center gap-1">
+                            <span>📍</span> {r.projects.sede}
+                          </p>
+                        )}
+                        <div class="flex flex-wrap gap-1.5 pt-1">
+                          {r.projects?.project_member?.map((m: any) => (
+                            <span class="px-2 py-0.5 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/60">
+                              {m.profiles?.name ?? "Hacker"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Duda */}
+                      <div class="md:col-span-2">
+                        <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                          Solicitud
+                        </p>
+                        <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
+                          {r.request}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </section>
+
+        {/* ── Asignadas ── */}
+        <section>
+          <h2
+            class="text-blue-300/60 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2"
+          >
+            <span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+            Asignadas ({assigned.length})
+          </h2>
+
+          {
+            assigned.length === 0 ? (
+              <div class="text-center py-6 text-amber-100/20 text-sm italic">
+                No hay solicitudes asignadas
+              </div>
+            ) : (
+              <div class="space-y-4">
+                {assigned.map((r: any) => {
+                  const isMyRequest = r.assigned_mentor === user.id;
+                  return (
+                    <div
+                      class={`bg-black/50 backdrop-blur-sm rounded-xl border overflow-hidden transition-all ${isMyRequest ? "border-blue-400/40 shadow-[0_0_20px_rgba(96,165,250,0.1)]" : "border-amber-400/15"}`}
+                    >
+                      <div class="px-5 py-3 border-b border-amber-400/15 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-400/20 border border-blue-400/40 text-blue-300 font-bold uppercase tracking-widest">
+                            Asignada
+                          </span>
+                          <span class="text-amber-100/40 text-xs font-medium">
+                            🧑‍💻 {(r.mentor_profile as any)?.name ?? "Mentor"}
+                            {isMyRequest && (
+                              <span class="ml-1 text-blue-300">(tú)</span>
+                            )}
+                          </span>
+                          <span class="text-amber-100/30 text-xs">
+                            hace {timeAgo(r.created_at)}
+                          </span>
+                        </div>
+                        {isMyRequest && (
+                          <div class="flex gap-2">
+                            <form action="/api/assistance/status" method="post">
+                              <input
+                                type="hidden"
+                                name="request_id"
+                                value={r.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="status"
+                                value="unassign"
+                              />
+                              <input
+                                type="hidden"
+                                name="origin"
+                                value="needhelp"
+                              />
+                              <button
+                                type="submit"
+                                class="px-4 py-2 bg-black/40 hover:bg-amber-900/30 border border-amber-400/20 hover:border-amber-400/50 text-amber-200/60 hover:text-amber-200 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                              >
+                                Desasignarme
+                              </button>
+                            </form>
+                            <form action="/api/assistance/status" method="post">
+                              <input
+                                type="hidden"
+                                name="request_id"
+                                value={r.id}
+                              />
+                              <input type="hidden" name="status" value="done" />
+                              <input
+                                type="hidden"
+                                name="origin"
+                                value="needhelp"
+                              />
+                              <button
+                                type="submit"
+                                class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                              >
+                                ✓ Resuelto
+                              </button>
+                            </form>
+                          </div>
+                        )}
+                      </div>
+                      <div class="px-5 py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-1 space-y-2">
+                          <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold">
+                            Proyecto
+                          </p>
+                          <p class="text-amber-200 font-black text-base uppercase tracking-wide">
+                            {r.projects?.name ?? "—"}
+                          </p>
+                          {r.projects?.challenges && (
+                            <p class="text-amber-300/70 text-xs flex items-center gap-1">
+                              <span>🏆</span> {r.projects.challenges.title}
+                            </p>
+                          )}
+                          {r.projects?.sede && (
+                            <p class="text-amber-100/40 text-xs flex items-center gap-1">
+                              <span>📍</span> {r.projects.sede}
+                            </p>
+                          )}
+                          <div class="flex flex-wrap gap-1.5 pt-1">
+                            {r.projects?.project_member?.map((m: any) => (
+                              <span class="px-2 py-0.5 bg-black/40 border border-amber-400/15 rounded-full text-xs text-amber-100/60">
+                                {m.profiles?.name ?? "Hacker"}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div class="md:col-span-2 space-y-3">
+                          <div>
+                            <p class="text-amber-200/50 text-xs uppercase tracking-widest font-bold mb-2">
+                              Solicitud
+                            </p>
+                            <p class="text-amber-100 text-sm leading-relaxed bg-black/30 rounded-lg px-4 py-3 border border-amber-400/10 whitespace-pre-wrap break-words">
+                              {r.request}
+                            </p>
+                          </div>
+                          {/* Respuesta del mentor visible para todos */}
+                          {r.mentor_response && (
+                            <div class="px-4 py-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                              <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
+                                💬 Respuesta
+                              </p>
+                              <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
+                                {r.mentor_response}
+                              </p>
+                            </div>
+                          )}
+                          {/* Formulario de respuesta: solo para el mentor asignado */}
+                          {isMyRequest && (
+                            <div class="pt-2 border-t border-blue-500/15 space-y-2">
+                              <p class="text-blue-200/40 text-xs uppercase tracking-widest font-bold">
+                                Enviar respuesta al equipo
+                              </p>
+                              <div class="flex gap-2">
+                                <form
+                                  action="/api/assistance/respond"
+                                  method="post"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="request_id"
+                                    value={r.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="response"
+                                    value="En camino 🚶"
+                                  />
+                                  <button
+                                    type="submit"
+                                    class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                                  >
+                                    🚶 En camino
+                                  </button>
+                                </form>
+                              </div>
+                              <form
+                                action="/api/assistance/respond"
+                                method="post"
+                                class="flex gap-2"
+                              >
+                                <input
+                                  type="hidden"
+                                  name="request_id"
+                                  value={r.id}
+                                />
+                                <input
+                                  type="text"
+                                  name="response"
+                                  placeholder="Mensaje personalizado…"
+                                  required
+                                  class="flex-1 px-3 py-2 bg-black/50 border border-blue-500/30 rounded-lg text-blue-100 placeholder-blue-100/30 focus:outline-none focus:border-blue-400 transition-all text-sm"
+                                />
+                                <button
+                                  type="submit"
+                                  class="px-4 py-2 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/40 hover:border-blue-400/60 text-blue-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest whitespace-nowrap"
+                                >
+                                  Enviar
+                                </button>
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
+        </section>
+
+        {/* ── Historial reciente ── */}
+        {
+          (resolvedRequests ?? []).length > 0 && (
+            <section>
+              <h2 class="text-amber-100/20 font-bold uppercase tracking-widest text-xs mb-4 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-100/20 inline-block" />
+                Historial reciente
+              </h2>
+              <div class="space-y-2">
+                {(resolvedRequests ?? []).map((r: any) => (
+                  <div class="bg-black/20 rounded-xl border border-amber-400/8 px-5 py-3 flex flex-wrap items-center gap-3 opacity-50">
+                    <span
+                      class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${r.status === "done" ? "bg-green-900/30 border border-green-500/30 text-green-400" : "bg-red-900/20 border border-red-500/20 text-red-400"}`}
+                    >
+                      {r.status === "done" ? "Resuelto" : "Cancelado"}
+                    </span>
+                    <span class="text-amber-200/50 font-bold text-sm">
+                      {r.projects?.name ?? "—"}
+                    </span>
+                    <span class="text-amber-100/30 text-xs">
+                      {new Date(r.created_at).toLocaleString("es-ES", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <span class="text-amber-100/20 text-xs truncate max-w-xs">
+                      {r.request}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )
+        }
+      </div>
+    </div>
+    <Footer />
+  </main>
+</Layout>

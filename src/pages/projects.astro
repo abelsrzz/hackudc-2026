@@ -78,6 +78,21 @@ const userProjectId = userMembership
 const userProject = userProjectId
   ? projects?.find((p: any) => p.id === userProjectId)
   : null;
+
+// Solicitud de ayuda activa del proyecto del usuario
+let activeRequest: any = null;
+if (userProjectId) {
+  const { data: ar } = await supabaseAdmin
+    .from("assistance_requests")
+    .select(
+      `id, created_at, status, request, mentor_response,
+       mentor_profile:profiles!assistance_requests_assigned_mentor_fkey (id, name)`,
+    )
+    .eq("project_id", userProjectId)
+    .in("status", ["pending", "assigned"])
+    .maybeSingle();
+  activeRequest = ar;
+}
 ---
 
 <Layout title="Proyectos — HackUDC">
@@ -327,6 +342,122 @@ const userProject = userProjectId
                       El equipo ya está completo (4/4 miembros).
                     </p>
                   )}
+
+                  {/* ── Solicitar ayuda ── */}
+                  <div class="mt-2 pt-6 border-t border-amber-400/15">
+                    <p class="text-amber-200/50 text-xs uppercase tracking-widest mb-3 font-bold">
+                      Solicitar ayuda a un mentor
+                    </p>
+
+                    {activeRequest ? (
+                      <div class="space-y-3">
+                        {/* Estado de la solicitud activa */}
+                        <div
+                          class={`rounded-lg border px-4 py-3 flex flex-col gap-2 ${activeRequest.status === "assigned" ? "bg-blue-900/20 border-blue-500/30" : "bg-amber-400/5 border-amber-400/20"}`}
+                        >
+                          <div class="flex flex-wrap items-center gap-3">
+                            <span
+                              class={`text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-widest ${activeRequest.status === "assigned" ? "bg-blue-400/20 border border-blue-400/40 text-blue-300" : "bg-amber-400/15 border border-amber-400/30 text-amber-300"}`}
+                            >
+                              {activeRequest.status === "assigned"
+                                ? "🧑‍💻 Mentor en camino"
+                                : "⏳ Pendiente"}
+                            </span>
+                            {activeRequest.status === "assigned" && (
+                              <span class="text-blue-200/70 text-xs font-medium">
+                                {(activeRequest.mentor_profile as any)?.name ??
+                                  "Un mentor"}
+                              </span>
+                            )}
+                            <span class="text-amber-100/30 text-xs">
+                              {new Date(
+                                activeRequest.created_at,
+                              ).toLocaleString("es-ES", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <p class="text-amber-100/70 text-sm bg-black/20 rounded px-3 py-2 whitespace-pre-wrap break-words">
+                            {activeRequest.request}
+                          </p>
+                          {activeRequest.mentor_response && (
+                            <div class="mt-2 px-3 py-2 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                              <p class="text-blue-300/60 text-xs uppercase tracking-widest font-bold mb-1">
+                                💬 Respuesta del mentor
+                              </p>
+                              <p class="text-blue-100/80 text-sm whitespace-pre-wrap break-words">
+                                {activeRequest.mentor_response}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {/* Acciones del hacker */}
+                        <div class="flex gap-2">
+                          <form action="/api/assistance/status" method="post">
+                            <input
+                              type="hidden"
+                              name="request_id"
+                              value={activeRequest.id}
+                            />
+                            <input type="hidden" name="status" value="done" />
+                            <input
+                              type="hidden"
+                              name="origin"
+                              value="projects"
+                            />
+                            <button
+                              type="submit"
+                              class="px-4 py-2 bg-green-900/40 hover:bg-green-800/50 border border-green-500/40 hover:border-green-400/60 text-green-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                            >
+                              ✓ Problema resuelto
+                            </button>
+                          </form>
+                          <form action="/api/assistance/status" method="post">
+                            <input
+                              type="hidden"
+                              name="request_id"
+                              value={activeRequest.id}
+                            />
+                            <input type="hidden" name="status" value="cancel" />
+                            <input
+                              type="hidden"
+                              name="origin"
+                              value="projects"
+                            />
+                            <button
+                              type="submit"
+                              class="px-4 py-2 bg-black/40 hover:bg-red-900/30 border border-amber-400/15 hover:border-red-500/40 text-amber-200/40 hover:text-red-300 rounded-lg transition-all text-xs font-bold uppercase tracking-widest"
+                            >
+                              Cancelar
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    ) : (
+                      <form
+                        action="/api/assistance/create"
+                        method="post"
+                        class="flex flex-col gap-3"
+                      >
+                        <textarea
+                          name="request"
+                          placeholder="Describe tu duda o problema…"
+                          required
+                          rows={3}
+                          class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+                        />
+                        <button
+                          type="submit"
+                          class="self-start px-6 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                          🙋 Pedir ayuda
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </div>
               </section>
             ) : (

@@ -1,6 +1,18 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.assistance_requests (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  status USER-DEFINED DEFAULT 'pending'::assitance_status_enum,
+  project_id bigint,
+  assigned_mentor uuid,
+  request text,
+  mentor_response text,
+  CONSTRAINT assistance_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT assistance_requests_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT assistance_requests_assigned_mentor_fkey FOREIGN KEY (assigned_mentor) REFERENCES public.profiles(id)
+);
 CREATE TABLE public.challenges (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   sponsor_id uuid NOT NULL,
