@@ -205,7 +205,7 @@ if (accessToken) {
 </div>
 )}
 
-<script define:vars={{ userId, userName, channel }}>
+<script define:vars={{ userId, userName, channel, supabaseUrl: import.meta.env.PUBLIC_SUPABASE_URL || import.meta.env.SUPABASE_URL, supabaseKey: import.meta.env.PUBLIC_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_KEY }}>
   // Scope to this specific chat instance using the channel id
   const chatBox = document.getElementById(`chat-box-${channel}`);
   const replyIndicator = document.getElementById(`reply-indicator-${channel}`);
@@ -304,15 +304,8 @@ if (accessToken) {
       });
 
       if (response.ok) {
-        const result = await response.json();
         if (messageInput) messageInput.value = "";
         clearReply();
-        if (result.data?.[0]) {
-          addMessageToDOM({
-            ...result.data[0],
-            profiles: { name: userName },
-          });
-        }
       } else {
         const errText = await response.text();
         alert("Error al enviar: " + errText);
@@ -397,4 +390,100 @@ if (accessToken) {
 
   // Scroll to bottom on load
   if (chatBox) chatBox.scrollTo(0, chatBox.scrollHeight);
+
+  // Exponer la función addMessageToDOM globalmente para que el script de realtime pueda usarla
+  window[`addMessageToDOM_${channel}`] = addMessageToDOM;
+  
+  // Exponer las URLs de Supabase para el script de realtime
+  if (!window.supabaseConfig) {
+    window.supabaseConfig = {
+      url: supabaseUrl,
+      key: supabaseKey
+    };
+  }
 </script>
+
+<script>
+  import { createClient } from "@supabase/supabase-js";
+
+  // Este script se ejecuta después del primero, cuando window ya tiene las funciones
+  setTimeout(() => {
+    const chatBoxes = document.querySelectorAll("[id^='chat-box-']");
+    
+    chatBoxes.forEach((chatBoxEl) => {
+      const channelId = chatBoxEl.id.replace("chat-box-", "");
+      const addMessageFunc = (window as any)[`addMessageToDOM_${channelId}`];
+      
+      if (!addMessageFunc) return;
+
+      const supabaseConfig = (window as any).supabaseConfig;
+      if (!supabaseConfig) {
+        console.error("Configuración de Supabase no encontrada");
+        return;
+      }
+      
+      const supabase = createClient(supabaseConfig.url, supabaseConfig.key);
+
+      const realtimeChannel = supabase
+        .channel(`messages:${channelId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `channel=eq.${channelId}`,
+          },
+          async (payload) => {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("name")
+              .eq("id", payload.new.user_id)
+              .single();
+
+            addMessageFunc({
+              ...payload.new,
+              profiles: profile || { name: "Usuario" },
+            });
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "messages",
+            filter: `channel=eq.${channelId}`,
+          },
+          async (payload) => {
+            const msgDiv = chatBoxEl.querySelector(
+              `[data-message-id="${payload.new.id}"]`
+            );
+            if (msgDiv) {
+              const contentEl = msgDiv.querySelector(".text-amber-100\\/90");
+              if (contentEl) contentEl.textContent = payload.new.content;
+
+              const nameRow = msgDiv.querySelector(".flex.items-center.gap-2");
+              if (nameRow && !nameRow.querySelector(".edited-tag")) {
+                const tag = document.createElement("span");
+                tag.className = "edited-tag text-amber-400/50 text-xs italic";
+                tag.textContent = "(editado)";
+                nameRow.appendChild(tag);
+              }
+
+              const editBtn = msgDiv.querySelector(".edit-btn") as HTMLElement;
+              if (editBtn) {
+                editBtn.dataset.content = payload.new.content;
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      window.addEventListener("beforeunload", () => {
+        supabase.removeChannel(realtimeChannel);
+      });
+    });
+  }, 100);
+</script>
+
