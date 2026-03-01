@@ -1,6 +1,8 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
+import DashboardCard from "../components/DashboardCard.astro";
+import SignoutCard from "../components/SignoutCard.astro";
 import patternSvg from "../assets/pattern.svg";
 import { supabase } from "../lib/supabase";
 
@@ -108,218 +110,97 @@ const isMentor = profile?.role?.toLowerCase() === "mentor";
       <div
         class="w-full max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
       >
-        <!-- Challenges -->
-        <a
+        <DashboardCard
           href="/challenges"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">🏆</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Challenges
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Explora los retos disponibles y presenta tu solución.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver retos →
-          </span>
-        </a>
+          emoji="🏆"
+          title="Challenges"
+          description="Explora los retos disponibles y presenta tu solución."
+          linkText="Ver retos"
+        />
 
-        <!-- Horario -->
-        <a
+        <DashboardCard
           href="/schedule"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">📅</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Horario
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Consulta el programa y los eventos del hackathon.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver horario →
-          </span>
-        </a>
+          emoji="📅"
+          title="Horario"
+          description="Consulta el programa y los eventos del hackathon."
+          linkText="Ver horario"
+        />
 
-        <!-- Solicitudes de ayuda -->
-        <a
+        <DashboardCard
           href="/needhelp"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">🧑‍💻</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Solicitudes de ayuda
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Encuentra mentores o sponsors que te ayuden durante el evento.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver solicitudes de ayuda →
-          </span>
-        </a>
+          emoji="🧑‍💻"
+          title="Solicitudes de ayuda"
+          description="Encuentra mentores o sponsors que te ayuden durante el evento."
+          linkText="Ver solicitudes de ayuda"
+        />
 
-        <!-- Proyectos -->
-        <a
+        <DashboardCard
           href="/projects"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">🚀</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Proyectos
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Registra tu equipo y gestiona los miembros de tu proyecto.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver proyectos →
-          </span>
-        </a>
+          emoji="🚀"
+          title="Proyectos"
+          description="Registra tu equipo y gestiona los miembros de tu proyecto."
+          linkText="Ver proyectos"
+        />
 
-        {/* Need Help — solo para mentores y admins */}
-        {
-          (isMentor || isAdmin) && (
-            <a
-              href="/needhelp"
-              class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-blue-400/20 hover:border-blue-400/50 shadow-[0_0_20px_rgba(96,165,250,0.05)] hover:shadow-[0_0_25px_rgba(96,165,250,0.2)] transition-all duration-300 hover:scale-[1.02]"
-            >
-              <div class="text-3xl">🙋</div>
-              <h2 class="text-blue-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
-                Need Help
-              </h2>
-              <p class="text-amber-100/50 text-sm leading-relaxed">
-                Gestiona las solicitudes de ayuda de los equipos.
-              </p>
-              <span class="mt-auto text-blue-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-blue-300 transition-colors">
-                Ver solicitudes →
-              </span>
-            </a>
-          )
-        }
+        <DashboardCard
+          href="/chat"
+          emoji="💬"
+          title="Chat"
+          description="Habla con el resto de participantes, mentores y sponsors."
+          linkText="Abrir chat"
+        />
 
-        {/* Tareas — solo para mentores y admins */}
-        {
-          (isMentor || isAdmin) && (
-            <a
-              href="/tasks"
-              class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-blue-400/20 hover:border-blue-400/50 shadow-[0_0_20px_rgba(96,165,250,0.05)] hover:shadow-[0_0_25px_rgba(96,165,250,0.2)] transition-all duration-300 hover:scale-[1.02]"
-            >
-              <div class="text-3xl">📋</div>
-              <h2 class="text-blue-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors">
-                Tareas
-              </h2>
-              <p class="text-amber-100/50 text-sm leading-relaxed">
-                Gestiona las tareas del equipo de mentores.
-              </p>
-              <span class="mt-auto text-blue-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-blue-300 transition-colors">
-                Ver tareas →
-              </span>
-            </a>
-          )
-        }
-
-        <!-- Fotos -->
-        <a
+        <DashboardCard
           href="/photos"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">📸</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Fotos
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            El álbum compartido del hackathon. ¡Comparte el momento!
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver fotos →
-          </span>
-        </a>
+          emoji="📸"
+          title="Fotos"
+          description="El álbum compartido del hackathon. ¡Comparte el momento!"
+          linkText="Ver fotos"
+        />
 
-        <!-- Información -->
-        <a
+        <DashboardCard
           href="/information"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">ℹ️</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Información
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Todo lo que necesitas saber sobre el hackathon.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver info →
-          </span>
-        </a>
+          emoji="ℹ️"
+          title="Información"
+          description="Todo lo que necesitas saber sobre el hackathon."
+          linkText="Ver info"
+        />
 
-        <!-- Sponsors -->
-        <a
+        <DashboardCard
           href="/sponsors"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-amber-400/20 hover:border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.05)] hover:shadow-[0_0_25px_rgba(251,191,36,0.2)] transition-all duration-300 hover:scale-[1.02]"
-        >
-          <div class="text-3xl">🤝</div>
-          <h2
-            class="text-amber-300 font-black uppercase tracking-widest text-sm group-hover:text-white transition-colors"
-          >
-            Patrocinadores
-          </h2>
-          <p class="text-amber-100/50 text-sm leading-relaxed">
-            Conoce a las empresas que hacen posible HackUDC.
-          </p>
-          <span
-            class="mt-auto text-amber-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-amber-300 transition-colors"
-          >
-            Ver sponsors →
-          </span>
-        </a>
+          emoji="🤝"
+          title="Patrocinadores"
+          description="Conoce a las empresas que hacen posible HackUDC."
+          linkText="Ver sponsors"
+        />
 
-        <!-- Cerrar sesión -->
-        <form
-          action="/api/auth/signout"
-          method="get"
-          class="group flex flex-col gap-3 bg-black/40 backdrop-blur-sm p-6 rounded-xl border border-red-500/20 hover:border-red-500/50 shadow-[0_0_20px_rgba(220,38,38,0.05)] hover:shadow-[0_0_25px_rgba(220,38,38,0.2)] transition-all duration-300 hover:scale-[1.02] cursor-pointer"
-        >
-          <button type="submit" class="flex flex-col gap-3 text-left w-full">
-            <div class="text-3xl">🚪</div>
-            <h2
-              class="text-red-400 font-black uppercase tracking-widest text-sm group-hover:text-red-300 transition-colors"
-            >
-              Cerrar Sesión
-            </h2>
-            <p class="text-amber-100/50 text-sm leading-relaxed">
-              Finaliza tu sesión en HackUDC de forma segura.
-            </p>
-            <span
-              class="mt-auto text-red-400/60 text-xs font-bold uppercase tracking-widest group-hover:text-red-300 transition-colors"
-            >
-              Salir →
-            </span>
-          </button>
-        </form>
+        {
+          (isMentor || isAdmin) && (
+            <DashboardCard
+              href="/needhelp"
+              emoji="🙋"
+              title="Need Help"
+              description="Gestiona las solicitudes de ayuda de los equipos."
+              linkText="Ver solicitudes"
+              color="blue"
+            />
+          )
+        }
+
+        {
+          (isMentor || isAdmin) && (
+            <DashboardCard
+              href="/tasks"
+              emoji="📋"
+              title="Tareas"
+              description="Gestiona las tareas del equipo de mentores."
+              linkText="Ver tareas"
+              color="blue"
+            />
+          )
+        }
+
+        <SignoutCard />
       </div>
     </div>
 
