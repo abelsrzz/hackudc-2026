@@ -46,7 +46,12 @@ const { data: tasks } = await supabaseAdmin
       id,
       title,
       done,
-      created_at
+      created_at,
+      assigned_to,
+      assigned:profiles!subtasks_assigned_to_fkey (
+        id,
+        name
+      )
     )
   `,
   )
@@ -87,7 +92,14 @@ function statusColors(s: string) {
 }
 
 function timeAgo(dateStr: string) {
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  const date = new Date(dateStr);
+  const madridTime = new Date(
+    date.toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
+  );
+  const now = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }),
+  );
+  const diff = Math.floor((now.getTime() - madridTime.getTime()) / 1000);
   if (diff < 60) return `${diff}s`;
   if (diff < 3600) return `${Math.floor(diff / 60)}min`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
@@ -184,7 +196,7 @@ function timeAgo(dateStr: string) {
                 name="description"
                 placeholder="Descripción (opcional)…"
                 rows={3}
-                class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none"
+                class="w-full px-4 py-3 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm resize-none align-top"
               ></textarea>
               <div class="flex justify-end">
                 <button
@@ -289,25 +301,32 @@ function timeAgo(dateStr: string) {
                           action="/api/tasks/update"
                           method="post"
                           class="flex gap-1"
+                          data-status-form
                         >
                           <input type="hidden" name="task_id" value={task.id} />
-                          <select
+                          <input
+                            type="hidden"
                             name="status"
-                            onchange="this.form.submit()"
-                            class="px-2 py-1.5 bg-black/50 border border-amber-400/20 rounded-lg text-amber-200 text-xs focus:outline-none focus:border-amber-400/50 cursor-pointer appearance-none"
-                          >
+                            value={task.status}
+                            data-status-input
+                          />
+                          <div class="flex gap-1">
                             {["pending", "in_progress", "done", "cancel"].map(
                               (s) => (
-                                <option
-                                  value={s}
-                                  selected={task.status === s}
-                                  class="bg-[#0a0011]"
+                                <button
+                                  type="button"
+                                  data-status-btn={s}
+                                  class={`px-2 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest border transition-all duration-200 ${
+                                    task.status === s
+                                      ? "bg-amber-400/30 border-amber-400/60 text-amber-200"
+                                      : "bg-black/40 border-amber-400/15 text-amber-400/50 hover:border-amber-400/40 hover:text-amber-300"
+                                  }`}
                                 >
                                   {statusLabel(s)}
-                                </option>
+                                </button>
                               ),
                             )}
-                          </select>
+                          </div>
                         </form>
 
                         {/* Toggle detalles */}
@@ -392,7 +411,7 @@ function timeAgo(dateStr: string) {
                               <textarea
                                 name="description"
                                 rows={3}
-                                class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100/80 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono resize-none placeholder-amber-100/20"
+                                class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100/80 text-sm focus:outline-none focus:border-amber-400/50 transition-all font-mono resize-none placeholder-amber-100/20 align-top"
                                 placeholder="Sin descripción…"
                               >
                                 {task.description ?? ""}
@@ -419,68 +438,119 @@ function timeAgo(dateStr: string) {
                                 Sin subtareas aún.
                               </p>
                             ) : (
-                              <ul class="space-y-1.5 mb-3">
+                              <ul class="space-y-2 mb-3">
                                 {subtasks
                                   .slice()
                                   .sort(
                                     (a: any, b: any) =>
                                       Number(a.done) - Number(b.done),
                                   )
-                                  .map((sub: any) => (
-                                    <li class="flex items-center gap-3 group/sub">
-                                      <form
-                                        action="/api/tasks/subtasks/update"
-                                        method="post"
-                                        class="flex items-center gap-3 flex-1"
-                                      >
-                                        <input
-                                          type="hidden"
-                                          name="subtask_id"
-                                          value={sub.id}
-                                        />
-                                        <input
-                                          type="hidden"
-                                          name="done"
-                                          value={sub.done ? "false" : "true"}
-                                        />
-                                        <button
-                                          type="submit"
-                                          class={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all ${
-                                            sub.done
-                                              ? "bg-green-400/30 border-green-400/60 text-green-300"
-                                              : "bg-transparent border-amber-400/30 hover:border-amber-400/60"
-                                          }`}
+                                  .map((sub: any) => {
+                                    const isAssignedToMe =
+                                      sub.assigned_to === user.id;
+                                    return (
+                                      <li class="flex items-start gap-3 group/sub bg-black/20 p-2 rounded-lg border border-amber-400/10 hover:border-amber-400/20 transition-all">
+                                        <form
+                                          action="/api/tasks/subtasks/update"
+                                          method="post"
+                                          class="flex items-start gap-3 flex-1"
                                         >
-                                          {sub.done && (
-                                            <span class="text-xs">✓</span>
-                                          )}
-                                        </button>
-                                        <span
-                                          class={`text-sm transition-all ${sub.done ? "line-through text-amber-100/30" : "text-amber-100/80"}`}
-                                        >
-                                          {sub.title}
-                                        </span>
-                                      </form>
-                                      <form
-                                        action="/api/tasks/subtasks/delete"
-                                        method="post"
-                                        class="opacity-0 group-hover/sub:opacity-100 transition-opacity"
-                                      >
-                                        <input
-                                          type="hidden"
-                                          name="subtask_id"
-                                          value={sub.id}
-                                        />
-                                        <button
-                                          type="submit"
-                                          class="text-amber-400/30 hover:text-red-400 text-xs px-1 transition-colors"
-                                          title="Eliminar subtarea"
-                                        >
-                                          ✕
-                                        </button>
-                                      </form>
-                                    </li>
-                                  ))}
+                                          <input
+                                            type="hidden"
+                                            name="subtask_id"
+                                            value={sub.id}
+                                          />
+                                          <input
+                                            type="hidden"
+                                            name="done"
+                                            value={sub.done ? "false" : "true"}
+                                          />
+                                          <button
+                                            type="submit"
+                                            class={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-all mt-0.5 ${
+                                              sub.done
+                                                ? "bg-green-400/30 border-green-400/60 text-green-300"
+                                                : "bg-transparent border-amber-400/30 hover:border-amber-400/60"
+                                            }`}
+                                          >
+                                            {sub.done && (
+                                              <span class="text-xs">✓</span>
+                                            )}
+                                          </button>
+                                          <div class="flex-1">
+                                            <span
+                                              class={`text-sm block transition-all ${sub.done ? "line-through text-amber-100/30" : "text-amber-100/80"}`}
+                                            >
+                                              {sub.title}
+                                            </span>
+                                            {sub.assigned_to && (
+                                              <span class="text-xs text-amber-300/50 mt-1 block">
+                                                Asignado a:{" "}
+                                                {(sub.assigned as any)?.name ||
+                                                  "Usuario"}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </form>
+                                        <div class="flex gap-1 shrink-0">
+                                          {/* Botón de asignar/desasignar */}
+                                          <form
+                                            action="/api/tasks/subtasks/assign"
+                                            method="post"
+                                          >
+                                            <input
+                                              type="hidden"
+                                              name="subtask_id"
+                                              value={sub.id}
+                                            />
+                                            <input
+                                              type="hidden"
+                                              name="action"
+                                              value={
+                                                isAssignedToMe
+                                                  ? "unassign"
+                                                  : "assign"
+                                              }
+                                            />
+                                            <button
+                                              type="submit"
+                                              class={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider border transition-all ${
+                                                isAssignedToMe
+                                                  ? "bg-amber-400/20 border-amber-400/40 text-amber-300 hover:bg-amber-400/30"
+                                                  : "bg-black/40 border-amber-400/20 text-amber-400/60 hover:border-amber-400/40 hover:text-amber-300"
+                                              }`}
+                                              title={
+                                                isAssignedToMe
+                                                  ? "Desinscribirme"
+                                                  : "Inscribirme"
+                                              }
+                                            >
+                                              {isAssignedToMe ? "✓" : "+"}
+                                            </button>
+                                          </form>
+                                          {/* Botón de eliminar */}
+                                          <form
+                                            action="/api/tasks/subtasks/delete"
+                                            method="post"
+                                            class="opacity-0 group-hover/sub:opacity-100 transition-opacity"
+                                          >
+                                            <input
+                                              type="hidden"
+                                              name="subtask_id"
+                                              value={sub.id}
+                                            />
+                                            <button
+                                              type="submit"
+                                              class="text-amber-400/30 hover:text-red-400 text-xs px-1 transition-colors"
+                                              title="Eliminar subtarea"
+                                            >
+                                              ✕
+                                            </button>
+                                          </form>
+                                        </div>
+                                      </li>
+                                    );
+                                  })}
                               </ul>
                             )}
 
@@ -555,4 +625,22 @@ function timeAgo(dateStr: string) {
       );
     }
   }
+
+  // Status buttons
+  document.querySelectorAll("[data-status-form]").forEach((form) => {
+    const statusInput = form.querySelector(
+      "[data-status-input]",
+    ) as HTMLInputElement;
+    const buttons = form.querySelectorAll("[data-status-btn]");
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const newStatus = btn.getAttribute("data-status-btn");
+        if (statusInput && newStatus) {
+          statusInput.value = newStatus;
+          (form as HTMLFormElement).submit();
+        }
+      });
+    });
+  });
 </script>
