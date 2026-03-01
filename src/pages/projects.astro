@@ -45,6 +45,10 @@ const { data: projects } = await supabaseAdmin
     created_at,
     challenge_id,
     sede,
+    github_repo_url,
+    description_markdown,
+    status,
+    submitted_at,
     challenges (
       id,
       title
@@ -246,7 +250,7 @@ if (userProjectId) {
                       </div>
 
                       {/* Botón para abandonar proyecto */}
-                      <div class="mb-5 pb-5 border-b border-amber-400/15">
+                      <div class="mb-5 pb-5 border-b border-amber-400/15 space-y-3">
                         <form
                           action="/api/projects/leave"
                           method="post"
@@ -264,6 +268,28 @@ if (userProjectId) {
                             Abandonar Proyecto
                           </button>
                         </form>
+
+                        {/* Botón para enviar proyecto */}
+                        <button
+                          id="btn-open-submit-modal"
+                          type="button"
+                          data-project-id={(userProject as any).id}
+                          data-project-name={(userProject as any).name ?? ""}
+                          data-github-url={
+                            (userProject as any).github_repo_url ?? ""
+                          }
+                          data-description={
+                            (userProject as any).description_markdown ?? ""
+                          }
+                          data-status={
+                            (userProject as any).status ?? "in_progress"
+                          }
+                          class="w-full px-4 py-2.5 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 rounded-lg transition-all duration-300 text-xs font-bold uppercase tracking-widest"
+                        >
+                          {(userProject as any).status === "submitted"
+                            ? "✓ Editar Envío"
+                            : "📤 Enviar Proyecto"}
+                        </button>
                       </div>
 
                       {/* Sede */}
@@ -706,4 +732,231 @@ if (userProjectId) {
 
     <Footer />
   </main>
+
+  <!-- Modal para Enviar/Editar Proyecto -->
+  <div
+    id="submit-project-modal"
+    class="hidden fixed inset-0 z-50 items-center justify-center p-4"
+  >
+    <div
+      id="submit-modal-overlay"
+      class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+    >
+    </div>
+    <div
+      class="relative z-10 bg-[#0a0011] border border-amber-400/40 rounded-2xl shadow-[0_0_60px_rgba(251,191,36,0.2)] w-full max-w-3xl p-8 max-h-[90vh] overflow-y-auto"
+    >
+      <div class="flex items-center justify-between mb-6">
+        <h2
+          id="submit-modal-title"
+          class="text-amber-300 font-black uppercase tracking-widest text-lg"
+        >
+          Enviar Proyecto
+        </h2>
+        <button
+          id="btn-close-submit-modal"
+          class="text-amber-100/40 hover:text-amber-200 transition-colors text-2xl leading-none"
+        >
+          ✕
+        </button>
+      </div>
+
+      <form id="submit-form" class="space-y-5">
+        <input type="hidden" id="submit-project-id" />
+        <input type="hidden" id="submit-is-update" value="false" />
+
+        <div>
+          <label
+            for="submit-name"
+            class="block text-amber-300 font-bold text-sm mb-2"
+          >
+            Nombre del Proyecto *
+          </label>
+          <input
+            type="text"
+            id="submit-name"
+            required
+            class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all"
+            placeholder="Mi Proyecto HackUDC"
+          />
+        </div>
+
+        <div>
+          <label
+            for="submit-github"
+            class="block text-amber-300 font-bold text-sm mb-2"
+          >
+            Link al Repositorio de GitHub *
+          </label>
+          <input
+            type="url"
+            id="submit-github"
+            required
+            class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all font-mono text-sm"
+            placeholder="https://github.com/usuario/proyecto"
+          />
+        </div>
+
+        <div>
+          <label
+            for="submit-description"
+            class="block text-amber-300 font-bold text-sm mb-2"
+          >
+            Descripción (Markdown) *
+          </label>
+          <textarea
+            id="submit-description"
+            required
+            rows="8"
+            class="w-full px-4 py-2 bg-black/50 border-2 border-amber-400/30 rounded-lg text-amber-100 placeholder-amber-100/30 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all resize-none font-mono text-sm"
+            placeholder="# Mi Proyecto
+
+## Descripción
+Descripción del proyecto...
+
+## Tecnologías
+- React
+- Node.js
+- ...
+
+## Enlaces
+- Demo: https://...
+"
+          ></textarea>
+          <p class="text-amber-200/50 text-xs mt-1">
+            Puedes usar Markdown para formatear tu descripción
+          </p>
+        </div>
+
+        <div class="flex gap-3 pt-4">
+          <button
+            type="submit"
+            class="flex-1 py-3 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300"
+          >
+            <span id="submit-btn-text">Enviar Proyecto</span>
+          </button>
+          <button
+            type="button"
+            id="btn-cancel-submit"
+            class="px-6 py-3 bg-black/40 hover:bg-black/60 border border-amber-400/30 text-amber-200 font-bold uppercase text-xs rounded-lg transition-all"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const submitModal = document.getElementById("submit-project-modal");
+    const submitModalOverlay = document.getElementById("submit-modal-overlay");
+    const btnOpenSubmitModal = document.getElementById("btn-open-submit-modal");
+    const btnCloseSubmitModal = document.getElementById(
+      "btn-close-submit-modal",
+    );
+    const btnCancelSubmit = document.getElementById("btn-cancel-submit");
+    const submitForm = document.getElementById(
+      "submit-form",
+    ) as HTMLFormElement;
+    const submitModalTitle = document.getElementById("submit-modal-title");
+    const submitBtnText = document.getElementById("submit-btn-text");
+
+    const submitProjectIdInput = document.getElementById(
+      "submit-project-id",
+    ) as HTMLInputElement;
+    const submitIsUpdateInput = document.getElementById(
+      "submit-is-update",
+    ) as HTMLInputElement;
+    const submitNameInput = document.getElementById(
+      "submit-name",
+    ) as HTMLInputElement;
+    const submitGithubInput = document.getElementById(
+      "submit-github",
+    ) as HTMLInputElement;
+    const submitDescriptionInput = document.getElementById(
+      "submit-description",
+    ) as HTMLTextAreaElement;
+
+    function openSubmitModal() {
+      const btn = btnOpenSubmitModal as HTMLButtonElement;
+      const projectId = btn?.dataset.projectId;
+      const projectName = btn?.dataset.projectName || "";
+      const githubUrl = btn?.dataset.githubUrl || "";
+      const description = btn?.dataset.description || "";
+      const status = btn?.dataset.status || "in_progress";
+
+      submitProjectIdInput.value = projectId || "";
+      submitNameInput.value = projectName;
+      submitGithubInput.value = githubUrl;
+      submitDescriptionInput.value = description;
+
+      if (status === "submitted") {
+        submitIsUpdateInput.value = "true";
+        if (submitModalTitle)
+          submitModalTitle.textContent = "Editar Envío del Proyecto";
+        if (submitBtnText) submitBtnText.textContent = "Actualizar Envío";
+      } else {
+        submitIsUpdateInput.value = "false";
+        if (submitModalTitle) submitModalTitle.textContent = "Enviar Proyecto";
+        if (submitBtnText) submitBtnText.textContent = "Enviar Proyecto";
+      }
+
+      submitModal?.classList.remove("hidden");
+      submitModal?.classList.add("flex");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeSubmitModal() {
+      submitModal?.classList.remove("flex");
+      submitModal?.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    btnOpenSubmitModal?.addEventListener("click", openSubmitModal);
+    btnCloseSubmitModal?.addEventListener("click", closeSubmitModal);
+    btnCancelSubmit?.addEventListener("click", closeSubmitModal);
+    submitModalOverlay?.addEventListener("click", closeSubmitModal);
+
+    submitForm?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const projectId = submitProjectIdInput.value;
+      const isUpdate = submitIsUpdateInput.value === "true";
+      const name = submitNameInput.value;
+      const github_repo_url = submitGithubInput.value;
+      const description_markdown = submitDescriptionInput.value;
+
+      if (!projectId) {
+        alert("❌ Error: No se encontró el ID del proyecto");
+        return;
+      }
+
+      try {
+        const endpoint = isUpdate
+          ? "/api/projects/update-submission"
+          : "/api/projects/submit";
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            name,
+            github_repo_url,
+            description_markdown,
+          }),
+        });
+
+        if (response.ok) {
+          closeSubmitModal();
+          window.location.reload();
+        } else {
+          const error = await response.json();
+          alert(`❌ Error: ${error.error || "Error desconocido"}`);
+        }
+      } catch (error) {
+        alert("❌ Error al enviar el proyecto");
+      }
+    });
+  </script>
 </Layout>

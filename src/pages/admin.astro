@@ -2,7 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase } from "../lib/supabase";
+import { supabase, supabaseAdmin } from "../lib/supabase";
 
 const { cookies, redirect } = Astro;
 
@@ -37,6 +37,18 @@ const { data: usersData } = await supabase
   .from("profiles")
   .select("id, name, role, created_at, sponsor_id");
 
+// Obtener emails de los usuarios desde auth
+const {
+  data: { users: authUsers },
+} = await supabaseAdmin.auth.admin.listUsers();
+const emailMap = new Map(authUsers?.map((u) => [u.id, u.email]) || []);
+
+// Combinar datos de perfil con emails
+const usersWithEmails = usersData?.map((u) => ({
+  ...u,
+  email: emailMap.get(u.id) || "Sin email",
+}));
+
 // Obtener sponsors
 const { data: sponsorsData } = await supabase
   .from("sponsors")
@@ -45,7 +57,7 @@ const { data: sponsorsData } = await supabase
 
 // Ordenar usuarios por rol
 const roleOrder = { Admin: 1, Mentor: 2, Sponsor: 3, Hacker: 4 };
-const users = usersData?.sort((a, b) => {
+const users = usersWithEmails?.sort((a, b) => {
   return (
     (roleOrder[a.role as keyof typeof roleOrder] || 5) -
     (roleOrder[b.role as keyof typeof roleOrder] || 5)
@@ -106,6 +118,9 @@ const users = usersData?.sort((a, b) => {
                     Nombre
                   </th>
                   <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
+                    Email
+                  </th>
+                  <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
                     Rol
                   </th>
                   <th class="p-4 text-amber-300 font-bold uppercase tracking-wider text-sm">
@@ -131,6 +146,7 @@ const users = usersData?.sort((a, b) => {
                     <td class="p-4 text-amber-100 font-bold">
                       {u.name || "Sin nombre"}
                     </td>
+                    <td class="p-4 text-amber-100/80 text-sm">{u.email}</td>
                     <td class="p-4">
                       <select
                         data-user-id={u.id}
@@ -503,8 +519,7 @@ const users = usersData?.sort((a, b) => {
             <div>
               <label
                 for="sponsor-logo"
-                class="block text-amber-300 font-bold text-sm mb-2"
-                >Logo</label
+                class="block text-amber-300 font-bold text-sm mb-2">Logo</label
               >
               <input
                 type="file"
@@ -873,10 +888,13 @@ const users = usersData?.sort((a, b) => {
         formData.append("file", sponsorLogoInput.files[0]);
 
         try {
-          const uploadResponse = await fetch("/api/admin/sponsors/upload-logo", {
-            method: "POST",
-            body: formData,
-          });
+          const uploadResponse = await fetch(
+            "/api/admin/sponsors/upload-logo",
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
 
           if (uploadResponse.ok) {
             const uploadData = await uploadResponse.json();
