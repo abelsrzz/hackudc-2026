@@ -71,12 +71,20 @@ const isMentor = profile?.role?.toLowerCase() === "mentor";
         <div class="flex items-center gap-3">
           {
             isAdmin && (
-              <a
-                href="/admin"
-                class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
-              >
-                ⚙ Admin
-              </a>
+              <>
+                <a
+                  href="/submissions"
+                  class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
+                >
+                  📋 Entregas
+                </a>
+                <a
+                  href="/admin"
+                  class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 font-bold uppercase text-xs tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.15)] hover:shadow-[0_0_15px_rgba(251,191,36,0.35)]"
+                >
+                  ⚙ Admin
+                </a>
+              </>
             )
           }
           <a

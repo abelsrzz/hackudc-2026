@@ -1,0 +1,500 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Footer from "../components/Footer.astro";
+import patternSvg from "../assets/pattern.svg";
+import { supabaseAdmin } from "../lib/supabase";
+
+const { cookies, redirect } = Astro;
+
+// Verificar autenticación
+const access_token = cookies.get("sb-access-token")?.value;
+
+if (!access_token) {
+  return redirect("/signin");
+}
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(access_token);
+
+if (userError || !user) {
+  return redirect("/signin");
+}
+
+// Verificar que sea Admin
+const { data: profile } = await supabaseAdmin
+  .from("profiles")
+  .select("role")
+  .eq("id", user.id)
+  .single();
+
+if (!profile || profile.role !== "Admin") {
+  return redirect("/dashboard");
+}
+
+// Obtener proyectos enviados
+const { data: projects } = await supabaseAdmin
+  .from("projects")
+  .select(
+    `
+    id,
+    name,
+    github_repo_url,
+    description_markdown,
+    submitted_at,
+    sede,
+    challenges (
+      id,
+      title
+    ),
+    project_member (
+      profiles (
+        id,
+        name,
+        avatar_url
+      )
+    )
+  `,
+  )
+  .eq("status", "submitted")
+  .order("submitted_at", { ascending: false });
+
+// Obtener todas las puntuaciones
+const projectIds = projects?.map((p) => p.id) || [];
+const { data: ratings } = projectIds.length
+  ? await supabaseAdmin
+      .from("project_ratings")
+      .select("project_id, admin_id, score")
+      .in("project_id", projectIds)
+  : { data: [] };
+
+// Obtener promedios
+const { data: averages } = projectIds.length
+  ? await supabaseAdmin
+      .from("project_average_ratings")
+      .select("project_id, average_score, rating_count")
+      .in("project_id", projectIds)
+  : { data: [] };
+
+// Mapear puntuaciones del admin actual y promedios
+const myRatings = new Map();
+const avgScores = new Map();
+ratings?.forEach((r: any) => {
+  if (r.admin_id === user.id) {
+    myRatings.set(r.project_id, r.score);
+  }
+});
+averages?.forEach((a: any) => {
+  avgScores.set(a.project_id, {
+    average: a.average_score,
+    count: a.rating_count,
+  });
+});
+
+// Ordenamiento
+const sortBy = Astro.url.searchParams.get("sort") || "recent";
+const sortedProjects = projects
+  ? [...projects].sort((a, b) => {
+      if (sortBy === "rating") {
+        const avgA = avgScores.get(a.id)?.average || 0;
+        const avgB = avgScores.get(b.id)?.average || 0;
+        return avgB - avgA;
+      }
+      // Por defecto: más recientes primero
+      return (
+        new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
+      );
+    })
+  : [];
+---
+
+<Layout title="Entregas — Admin">
+  <main class="relative min-h-screen overflow-hidden">
+    <!-- Background layers -->
+    <div
+      class="absolute inset-0 pointer-events-none z-0 opacity-80"
+      style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
+    >
+    </div>
+    <div class="absolute inset-0 bg-[#0a0011]/80 pointer-events-none z-0"></div>
+    <div
+      class="absolute inset-0 pointer-events-none z-0"
+      style="background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.6) 80%, rgba(0,0,0,0.97) 100%);"
+    >
+    </div>
+
+    <div
+      class="relative z-20 flex flex-col items-center min-h-screen pt-20 pb-10 px-4"
+    >
+      <!-- Cabecera -->
+      <div class="w-full max-w-7xl flex items-center justify-between mb-8">
+        <a
+          href="/dashboard"
+          class="inline-flex items-center gap-2 rounded-lg border-2 border-amber-200 px-6 py-3 font-bold uppercase tracking-[0.2em] text-amber-200 transition-all duration-300 hover:scale-105 hover:bg-amber-200 hover:text-black"
+        >
+          ← Dashboard
+        </a>
+      </div>
+
+      <h1
+        class="text-4xl sm:text-5xl md:text-6xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-4 text-center"
+      >
+        Entregas
+      </h1>
+      <p class="text-amber-100/60 mb-8 text-center">
+        Proyectos enviados por los equipos
+      </p>
+
+      <!-- Controles de ordenamiento -->
+      <div
+        class="w-full max-w-7xl mb-6 flex items-center justify-between gap-4 flex-wrap"
+      >
+        <div class="text-amber-200/70 text-sm">
+          {sortedProjects.length}
+          {sortedProjects.length === 1 ? "proyecto" : "proyectos"} enviado{
+            sortedProjects.length === 1 ? "" : "s"
+          }
+        </div>
+        <div class="flex gap-2">
+          <a
+            href="?sort=recent"
+            class={`px-4 py-2 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all ${sortBy === "recent" ? "bg-amber-400/20 border-amber-400/50 text-amber-300" : "bg-black/30 border-amber-400/20 text-amber-200/50 hover:border-amber-400/40 hover:text-amber-200"}`}
+          >
+            Más Recientes
+          </a>
+          <a
+            href="?sort=rating"
+            class={`px-4 py-2 rounded-lg border text-xs font-bold uppercase tracking-wider transition-all ${sortBy === "rating" ? "bg-amber-400/20 border-amber-400/50 text-amber-300" : "bg-black/30 border-amber-400/20 text-amber-200/50 hover:border-amber-400/40 hover:text-amber-200"}`}
+          >
+            Mayor Nota
+          </a>
+        </div>
+      </div>
+
+      <!-- Lista de proyectos -->
+      <div class="w-full max-w-7xl space-y-4">
+        {
+          sortedProjects.length > 0 ? (
+            sortedProjects.map((project: any) => {
+              const avg = avgScores.get(project.id);
+              const myScore = myRatings.get(project.id);
+              return (
+                <div class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)] p-6 hover:border-amber-400/40 transition-all">
+                  <div class="flex items-start justify-between gap-4 flex-wrap">
+                    <div class="flex-1 min-w-0">
+                      <h3 class="text-xl font-black text-amber-300 mb-2">
+                        {project.name || "Sin nombre"}
+                      </h3>
+                      <div class="flex items-center gap-4 text-sm text-amber-100/60 mb-3">
+                        <span>
+                          📅{" "}
+                          {new Date(project.submitted_at).toLocaleDateString(
+                            "es-ES",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )}
+                        </span>
+                        {project.sede && <span>📍 {project.sede}</span>}
+                        {project.challenges && (
+                          <span>🏆 {project.challenges.title}</span>
+                        )}
+                      </div>
+                      <div class="flex flex-wrap gap-2 mb-3">
+                        {project.project_member.map((m: any) => (
+                          <div class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 rounded-full text-xs text-amber-100/80">
+                            {m.profiles?.avatar_url ? (
+                              <img
+                                src={m.profiles.avatar_url}
+                                alt=""
+                                class="w-4 h-4 rounded-full border border-amber-400/30 object-cover"
+                              />
+                            ) : (
+                              <span class="w-4 h-4 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 text-[10px] font-black">
+                                {m.profiles?.name?.charAt(0).toUpperCase() ||
+                                  "?"}
+                              </span>
+                            )}
+                            {m.profiles?.name || "Hacker"}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                      {avg && (
+                        <div class="text-center">
+                          <div class="text-2xl font-black text-amber-300">
+                            {avg.average}
+                          </div>
+                          <div class="text-xs text-amber-100/50">
+                            Nota Media ({avg.count})
+                          </div>
+                        </div>
+                      )}
+                      <button
+                        class="view-project-btn px-6 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 hover:border-amber-400/70 text-amber-300 rounded-lg transition-all text-sm font-bold uppercase tracking-wider"
+                        data-project-id={project.id}
+                        data-project-name={project.name || "Sin nombre"}
+                        data-github={project.github_repo_url || ""}
+                        data-description={project.description_markdown || ""}
+                        data-my-score={myScore !== undefined ? myScore : ""}
+                      >
+                        Ver Proyecto
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div class="text-center py-16 text-amber-100/40">
+              No hay proyectos enviados aún
+            </div>
+          )
+        }
+      </div>
+
+      <div class="mt-10 w-full">
+        <Footer />
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal para ver proyecto -->
+  <div
+    id="project-modal"
+    class="hidden fixed inset-0 z-50 items-center justify-center p-4"
+  >
+    <div
+      id="project-modal-overlay"
+      class="absolute inset-0 bg-black/80 backdrop-blur-sm"
+    >
+    </div>
+    <div
+      class="relative z-10 bg-[#0a0011] border border-amber-400/40 rounded-2xl shadow-[0_0_60px_rgba(251,191,36,0.2)] w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+    >
+      <div
+        class="sticky top-0 z-10 bg-[#0a0011]/95 backdrop-blur-sm border-b border-amber-400/20 px-8 py-6 flex items-center justify-between"
+      >
+        <h2
+          id="modal-project-name"
+          class="text-amber-300 font-black uppercase tracking-widest text-xl"
+        >
+        </h2>
+        <button
+          id="btn-close-modal"
+          class="text-amber-100/40 hover:text-amber-200 transition-colors text-2xl leading-none"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="px-8 py-6 space-y-6">
+        <!-- GitHub Link -->
+        <div>
+          <p class="text-amber-300/70 text-sm font-bold uppercase mb-2">
+            Repositorio
+          </p>
+          <a
+            id="modal-github-link"
+            href=""
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-amber-200 hover:text-amber-100 underline"
+          >
+          </a>
+        </div>
+
+        <!-- Descripción con Markdown -->
+        <div>
+          <p class="text-amber-300/70 text-sm font-bold uppercase mb-3">
+            Descripción
+          </p>
+          <div
+            id="modal-description"
+            class="prose prose-invert prose-amber max-w-none prose-headings:text-amber-300 prose-headings:font-bold prose-a:text-amber-400 prose-a:no-underline hover:prose-a:underline prose-code:text-amber-200 prose-code:bg-black/50 prose-pre:bg-black/70 prose-pre:border prose-pre:border-amber-400/20"
+          >
+          </div>
+        </div>
+
+        <!-- Rating Slider -->
+        <div
+          class="pt-6 border-t border-amber-400/20 sticky bottom-0 bg-[#0a0011]/95 backdrop-blur-sm pb-6"
+        >
+          <div class="mb-4">
+            <label class="text-amber-300 text-sm font-bold uppercase mb-2 block"
+              >Tu Puntuación</label
+            >
+            <div class="flex items-center gap-4">
+              <input
+                type="range"
+                id="rating-slider"
+                min="0"
+                max="10"
+                step="0.1"
+                value="0"
+                class="flex-1 h-2 bg-black/50 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-400 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-amber-400 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:cursor-pointer"
+              />
+              <span
+                id="rating-value"
+                class="text-2xl font-black text-amber-300 w-12 text-right"
+                >0.0</span
+              >
+            </div>
+          </div>
+
+          <div
+            class="flex items-center justify-between p-4 bg-black/50 border border-amber-400/20 rounded-lg"
+          >
+            <div>
+              <p class="text-amber-300/70 text-xs uppercase mb-1">Nota Media</p>
+              <p id="average-score" class="text-3xl font-black text-amber-300">
+                —
+              </p>
+            </div>
+            <button
+              id="btn-save-rating"
+              class="px-6 py-3 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:scale-105"
+            >
+              Guardar Nota
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const projectModal = document.getElementById("project-modal");
+    const projectModalOverlay = document.getElementById(
+      "project-modal-overlay",
+    );
+    const btnCloseModal = document.getElementById("btn-close-modal");
+    const modalProjectName = document.getElementById("modal-project-name");
+    const modalGithubLink = document.getElementById(
+      "modal-github-link",
+    ) as HTMLAnchorElement;
+    const modalDescription = document.getElementById("modal-description");
+    const ratingSlider = document.getElementById(
+      "rating-slider",
+    ) as HTMLInputElement;
+    const ratingValue = document.getElementById("rating-value");
+    const averageScore = document.getElementById("average-score");
+    const btnSaveRating = document.getElementById("btn-save-rating");
+
+    let currentProjectId: number | null = null;
+
+    // Abrir modal
+    const viewButtons = document.querySelectorAll(".view-project-btn");
+    viewButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const target = e.target as HTMLButtonElement;
+        const projectId = target.dataset.projectId;
+        const projectName = target.dataset.projectName || "Sin nombre";
+        const github = target.dataset.github || "";
+        const description = target.dataset.description || "";
+        const myScore = target.dataset.myScore || "0";
+
+        currentProjectId = projectId ? parseInt(projectId) : null;
+
+        if (modalProjectName) modalProjectName.textContent = projectName;
+        if (modalGithubLink) {
+          modalGithubLink.href = github;
+          modalGithubLink.textContent = github;
+        }
+        if (modalDescription && window.marked) {
+          modalDescription.innerHTML = window.marked.parse(
+            description || "*Sin descripción*",
+          );
+        }
+
+        // Establecer puntuación actual
+        if (ratingSlider && ratingValue) {
+          ratingSlider.value = myScore;
+          ratingValue.textContent = parseFloat(myScore).toFixed(1);
+        }
+
+        // Actualizar nota media
+        updateAverageDisplay();
+
+        projectModal?.classList.remove("hidden");
+        projectModal?.classList.add("flex");
+        document.body.style.overflow = "hidden";
+      });
+    });
+
+    // Cerrar modal
+    function closeModal() {
+      projectModal?.classList.remove("flex");
+      projectModal?.classList.add("hidden");
+      document.body.style.overflow = "";
+      currentProjectId = null;
+    }
+
+    btnCloseModal?.addEventListener("click", closeModal);
+    projectModalOverlay?.addEventListener("click", closeModal);
+
+    // Actualizar valor del slider
+    ratingSlider?.addEventListener("input", (e) => {
+      const value = (e.target as HTMLInputElement).value;
+      if (ratingValue) {
+        ratingValue.textContent = parseFloat(value).toFixed(1);
+      }
+    });
+
+    // Actualizar nota media en pantalla
+    function updateAverageDisplay() {
+      const btn = document.querySelector(
+        `.view-project-btn[data-project-id="${currentProjectId}"]`,
+      );
+      const avgText = btn?.parentElement?.querySelector(".text-2xl");
+      if (averageScore && avgText) {
+        averageScore.textContent = avgText.textContent || "—";
+      }
+    }
+
+    // Guardar puntuación
+    btnSaveRating?.addEventListener("click", async () => {
+      if (!currentProjectId) return;
+
+      const score = parseFloat(ratingSlider.value);
+
+      try {
+        const response = await fetch("/api/admin/rate-project", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: currentProjectId, score }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (averageScore) {
+            averageScore.textContent = `${data.average} (${data.count})`;
+          }
+          // Actualizar en la lista también
+          const btn = document.querySelector(
+            `.view-project-btn[data-project-id="${currentProjectId}"]`,
+          );
+          if (btn) {
+            btn.setAttribute("data-my-score", score.toString());
+            const avgDiv = btn.parentElement?.querySelector(".text-2xl");
+            if (avgDiv) avgDiv.textContent = data.average.toString();
+            const countDiv = avgDiv?.nextElementSibling;
+            if (countDiv) countDiv.textContent = `Nota Media (${data.count})`;
+          }
+          alert("✅ Puntuación guardada correctamente");
+        } else {
+          const error = await response.text();
+          alert(`❌ Error: ${error}`);
+        }
+      } catch (error) {
+        alert("❌ Error al guardar la puntuación");
+      }
+    });
+  </script>
+</Layout>

@@ -646,8 +646,54 @@ const counts = {
         const isOpen = !details?.classList.contains("hidden");
         details?.classList.toggle("hidden");
         btn.textContent = isOpen ? "▼ Ver" : "▲ Cerrar";
+
+        // Guardar estado en sessionStorage
+        saveOpenTasks();
       });
     });
+
+  // Guardar qué tareas están abiertas
+  function saveOpenTasks() {
+    const openTasks = [];
+    panel
+      ?.querySelectorAll(`.task-details-panel[data-panel="${instanceId}"]`)
+      .forEach((details) => {
+        if (!details.classList.contains("hidden")) {
+          openTasks.push(details.dataset.taskId);
+        }
+      });
+    sessionStorage.setItem(
+      `openTasks-${instanceId}`,
+      JSON.stringify(openTasks),
+    );
+  }
+
+  // Restaurar tareas abiertas al cargar
+  function restoreOpenTasks() {
+    const openTasksStr = sessionStorage.getItem(`openTasks-${instanceId}`);
+    if (openTasksStr) {
+      try {
+        const openTasks = JSON.parse(openTasksStr);
+        openTasks.forEach((taskId) => {
+          const details = panel.querySelector(
+            `.task-details-panel[data-task-id="${taskId}"][data-panel="${instanceId}"]`,
+          );
+          const btn = panel.querySelector(
+            `.toggle-task-details[data-task-id="${taskId}"][data-panel="${instanceId}"]`,
+          );
+          if (details && btn) {
+            details.classList.remove("hidden");
+            btn.textContent = "▲ Cerrar";
+          }
+        });
+      } catch (e) {
+        console.error("Error al restaurar tareas abiertas:", e);
+      }
+    }
+  }
+
+  // Restaurar al cargar la página
+  restoreOpenTasks();
 
   // Status buttons
   panel?.querySelectorAll("[data-status-form]").forEach((form) => {
@@ -661,5 +707,38 @@ const counts = {
         }
       });
     });
+  });
+
+  // Interceptar formularios de subtareas para evitar recarga de página
+  panel?.querySelectorAll("form").forEach((form) => {
+    const action = form.getAttribute("action");
+
+    // Solo interceptar formularios de subtareas
+    if (action && action.includes("/api/tasks/subtasks/")) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        // Guardar estado antes de recargar
+        saveOpenTasks();
+
+        const formData = new FormData(form);
+
+        try {
+          const response = await fetch(action, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (response.ok) {
+            // Recargar la página (el estado se restaurará automáticamente)
+            window.location.reload();
+          } else {
+            console.error("Error en la petición:", response.statusText);
+          }
+        } catch (error) {
+          console.error("Error al enviar formulario:", error);
+        }
+      });
+    }
   });
 </script>
