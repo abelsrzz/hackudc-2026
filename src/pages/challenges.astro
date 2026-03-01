@@ -24,6 +24,19 @@ try {
   return Astro.redirect("/signin");
 }
 
+const user = session.data.user;
+
+if (!user) {
+  return Astro.redirect("/signin");
+}
+
+// Obtener perfil del usuario
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("role, sponsor_id")
+  .eq("id", user.id)
+  .single();
+
 // Obtener todos los challenges
 const { data: challenges, error } = await supabase
   .from("challenges")
@@ -54,6 +67,34 @@ const { data: challenges, error } = await supabase
       >
         Challenges
       </h1>
+
+      <!-- Botón New Challenge para Sponsors -->
+      {
+        profile?.role === "Sponsor" && (
+          <div class="w-full max-w-6xl mb-6 flex justify-end">
+            <a
+              href="/create_challenge"
+              class="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 text-black font-bold uppercase tracking-[0.2em] rounded-lg hover:bg-amber-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)] transition-all duration-300"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              New Challenge
+            </a>
+          </div>
+        )
+      }
 
       <div class="w-full max-w-6xl mb-8">
         {
