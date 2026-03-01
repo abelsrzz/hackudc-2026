@@ -52,6 +52,13 @@ CREATE TABLE public.profiles (
   role USER-DEFINED NOT NULL DEFAULT 'Hacker'::role_enum,
   created_at timestamp with time zone DEFAULT now(),
   sponsor_id uuid,
+  linkedin text,
+  github text,
+  twitter text,
+  website text,
+  institution text,
+  degree text,
+  year_of_study text,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id),
   CONSTRAINT profiles_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES public.sponsors(id)

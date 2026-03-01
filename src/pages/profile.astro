@@ -2,49 +2,76 @@
 import Layout from "../layouts/Layout.astro";
 import Footer from "../components/Footer.astro";
 import patternSvg from "../assets/pattern.svg";
-import { supabase } from "../lib/supabase";
+import { supabaseAdmin } from "../lib/supabase";
 
 const accessToken = Astro.cookies.get("sb-access-token");
-const refreshToken = Astro.cookies.get("sb-refresh-token");
+if (!accessToken) return Astro.redirect("/signin");
 
-if (!accessToken || !refreshToken) {
-  return Astro.redirect("/signin");
-}
+const {
+  data: { user },
+  error: userError,
+} = await supabaseAdmin.auth.getUser(accessToken.value);
+if (userError || !user) return Astro.redirect("/signin");
 
-let session;
-try {
-  session = await supabase.auth.setSession({
-    refresh_token: refreshToken.value,
-    access_token: accessToken.value,
-  });
-  if (session.error) {
-    return Astro.redirect("/signin");
-  }
-} catch (error) {
-  return Astro.redirect("/signin");
-}
-
-const user = session.data.user;
-
-// Obtener rol del usuario
-const { data: profile } = await supabase
+// Perfil completo
+const { data: profile } = await supabaseAdmin
   .from("profiles")
-  .select("role")
-  .eq("id", user?.id)
+  .select(
+    "id, name, role, linkedin, github, twitter, website, institution, degree, year_of_study",
+  )
+  .eq("id", user.id)
   .single();
-const isAdmin = profile?.role === "Admin";
 
-// Formatear fecha de creación
-const createdAt = new Date(user?.created_at || "").toLocaleDateString("es-ES", {
+const isAdmin = profile?.role?.toLowerCase() === "admin";
+
+// Proyecto del usuario (como miembro)
+const { data: membership } = await supabaseAdmin
+  .from("project_member")
+  .select(
+    `
+    project_id,
+    projects (
+      id,
+      name,
+      created_at,
+      sede,
+      challenge_id,
+      challenges (
+        id,
+        title,
+        short_description,
+        reward
+      ),
+      project_member (
+        id,
+        member_id,
+        profiles (
+          id,
+          name
+        )
+      )
+    )
+  `,
+  )
+  .eq("member_id", user.id)
+  .maybeSingle();
+
+const project = (membership?.projects as any) ?? null;
+
+const createdAt = new Date(user.created_at || "").toLocaleDateString("es-ES", {
   year: "numeric",
   month: "long",
   day: "numeric",
 });
+
+const successMsg = Astro.url.searchParams.get("success");
+const errorMsg = Astro.url.searchParams.get("error");
+
+const YEARS = ["1º", "2º", "3º", "4º", "Máster 1º", "Máster 2º", "Doctorado"];
 ---
 
-<Layout title="Mi Perfil">
+<Layout title="Mi Perfil — HackUDC">
   <main class="relative min-h-screen overflow-hidden">
-    <!-- Background layers -->
     <div
       class="absolute inset-0 pointer-events-none z-0 opacity-80"
       style={`background-image: url(${patternSvg.src}); background-repeat: repeat; background-size: 304px 304px;`}
@@ -58,111 +85,486 @@ const createdAt = new Date(user?.created_at || "").toLocaleDateString("es-ES", {
     </div>
 
     <div
-      class="relative z-20 flex flex-col items-center justify-center min-h-screen pt-20 pb-10 px-4"
+      class="relative z-20 flex flex-col items-center min-h-screen pt-10 pb-16 px-4"
     >
-      <h1
-        class="text-3xl sm:text-4xl md:text-5xl font-black uppercase tracking-[0.2em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00] mb-8 text-center"
-      >
-        Mi Perfil
-      </h1>
+      <!-- Cabecera -->
+      <div class="w-full max-w-3xl flex items-center justify-between mb-10">
+        <a
+          href="/dashboard"
+          class="text-amber-300 hover:text-white font-bold uppercase tracking-widest text-sm transition-colors"
+        >
+          ← Dashboard
+        </a>
+        {
+          isAdmin && (
+            <a
+              href="/admin"
+              class="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all font-bold uppercase text-xs tracking-wider"
+            >
+              ⚙ Admin
+            </a>
+          )
+        }
+      </div>
 
-      <div
-        class="w-full max-w-2xl bg-black/40 backdrop-blur-sm p-8 rounded-xl border border-amber-400/20 shadow-[0_0_20px_rgba(251,191,36,0.1)]"
-      >
-        <!-- Avatar Section -->
-        <div class="flex justify-center mb-8">
-          <div
-            class="w-24 h-24 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-4xl shadow-[0_0_15px_rgba(251,191,36,0.2)]"
-          >
-            {user?.email?.charAt(0).toUpperCase()}
-          </div>
+      <!-- Avatar + título -->
+      <div class="flex flex-col items-center mb-8">
+        <div
+          class="w-20 h-20 rounded-full bg-black border-2 border-amber-400 flex items-center justify-center text-amber-300 text-3xl font-black shadow-[0_0_20px_rgba(251,191,36,0.3)] mb-3"
+        >
+          {user.email?.charAt(0).toUpperCase()}
         </div>
+        <h1
+          class="text-3xl sm:text-4xl font-black uppercase tracking-[0.15em] text-amber-300 drop-shadow-[0_4px_0_#7c3f00]"
+        >
+          {profile?.name ?? user.email?.split("@")[0]}
+        </h1>
+        <p class="text-amber-100/40 text-sm mt-1">{user.email}</p>
+        <span
+          class="mt-2 px-3 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10 text-amber-300 text-xs font-bold uppercase tracking-widest"
+        >
+          {profile?.role ?? "Hacker"}
+        </span>
 
-        <div class="space-y-6">
-          <!-- Email Field -->
-          <div class="space-y-2">
-            <label
-              class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
-              >Correo Electrónico</label
-            >
-            <div
-              class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono"
-            >
-              {user?.email}
+        <!-- Redes sociales visibles (solo si hay datos) -->
+        {
+          (profile?.github ||
+            profile?.linkedin ||
+            profile?.twitter ||
+            profile?.website) && (
+            <div class="flex flex-wrap gap-2 mt-3 justify-center">
+              {profile?.github && (
+                <a
+                  href={
+                    profile.github.startsWith("http")
+                      ? profile.github
+                      : `https://github.com/${profile.github}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🐙{" "}
+                  {profile.github.replace(
+                    /https?:\/\/(www\.)?github\.com\/?/,
+                    "",
+                  )}
+                </a>
+              )}
+              {profile?.linkedin && (
+                <a
+                  href={
+                    profile.linkedin.startsWith("http")
+                      ? profile.linkedin
+                      : `https://linkedin.com/in/${profile.linkedin}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  💼{" "}
+                  {profile.linkedin.replace(
+                    /https?:\/\/(www\.)?linkedin\.com\/in\/?/,
+                    "",
+                  )}
+                </a>
+              )}
+              {profile?.twitter && (
+                <a
+                  href={
+                    profile.twitter.startsWith("http")
+                      ? profile.twitter
+                      : `https://twitter.com/${profile.twitter}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🐦{" "}
+                  {profile.twitter
+                    .replace(/https?:\/\/(www\.)?twitter\.com\/?/, "")
+                    .replace(/https?:\/\/(www\.)?x\.com\/?/, "")}
+                </a>
+              )}
+              {profile?.website && (
+                <a
+                  href={
+                    profile.website.startsWith("http")
+                      ? profile.website
+                      : `https://${profile.website}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="flex items-center gap-1.5 px-3 py-1 bg-black/40 border border-amber-400/20 hover:border-amber-400/50 rounded-full text-amber-200/60 hover:text-amber-200 text-xs font-mono transition-all"
+                >
+                  🌐 {profile.website.replace(/https?:\/\/(www\.)?/, "")}
+                </a>
+              )}
             </div>
-          </div>
+          )
+        }
 
-          <!-- ID Field -->
-          <div class="space-y-2">
-            <label
-              class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
-              >ID de Usuario</label
-            >
-            <div
-              class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100/60 font-mono text-sm truncate"
-            >
-              {user?.id}
-            </div>
-          </div>
+        <!-- Estudios visibles -->
+        {
+          (profile?.institution || profile?.degree) && (
+            <p class="text-amber-100/40 text-xs mt-2 text-center">
+              {[profile?.degree, profile?.year_of_study, profile?.institution]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )
+        }
+      </div>
 
-          <!-- Meta Info -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2">
+      <!-- Alertas -->
+      {
+        successMsg && (
+          <div class="w-full max-w-3xl mb-6 px-4 py-3 bg-green-900/40 border border-green-400/40 text-green-300 rounded-lg text-sm font-bold text-center">
+            ✓ Perfil actualizado correctamente.
+          </div>
+        )
+      }
+      {
+        errorMsg && (
+          <div class="w-full max-w-3xl mb-6 px-4 py-3 bg-red-900/40 border border-red-400/40 text-red-300 rounded-lg text-sm font-bold text-center">
+            ✗ Error al guardar el perfil. Inténtalo de nuevo.
+          </div>
+        )
+      }
+
+      <div class="w-full max-w-3xl space-y-6">
+        <!-- ── Formulario de perfil ── -->
+        <section
+          class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/25 overflow-hidden"
+        >
+          <div class="px-6 py-4 border-b border-amber-400/15">
+            <h2
+              class="text-amber-300 font-black uppercase tracking-widest text-xs"
+            >
+              Editar perfil
+            </h2>
+          </div>
+          <form
+            action="/api/profile/update"
+            method="post"
+            class="px-6 py-5 space-y-5"
+          >
+            <!-- Nombre -->
+            <div>
               <label
-                class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
+                class="block text-amber-200/50 font-bold tracking-widest uppercase text-xs mb-1.5"
+                >Nombre</label
+              >
+              <input
+                type="text"
+                name="name"
+                value={profile?.name ?? ""}
+                placeholder="Tu nombre completo"
+                class="w-full px-4 py-3 bg-black/50 border border-amber-400/25 rounded-lg text-amber-100 placeholder-amber-100/25 focus:outline-none focus:border-amber-300 focus:ring-1 focus:ring-amber-300 transition-all text-sm font-mono"
+              />
+            </div>
+
+            <!-- Redes sociales -->
+            <div>
+              <p
+                class="text-amber-200/50 font-bold tracking-widest uppercase text-xs mb-3"
+              >
+                Redes sociales
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-lg w-6 text-center shrink-0">🐙</span>
+                  <div class="flex-1">
+                    <label class="block text-amber-200/35 text-xs mb-1"
+                      >GitHub</label
+                    >
+                    <input
+                      type="text"
+                      name="github"
+                      value={profile?.github ?? ""}
+                      placeholder="usuario o URL"
+                      class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span class="text-lg w-6 text-center shrink-0">💼</span>
+                  <div class="flex-1">
+                    <label class="block text-amber-200/35 text-xs mb-1"
+                      >LinkedIn</label
+                    >
+                    <input
+                      type="text"
+                      name="linkedin"
+                      value={profile?.linkedin ?? ""}
+                      placeholder="usuario o URL"
+                      class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span class="text-lg w-6 text-center shrink-0">🐦</span>
+                  <div class="flex-1">
+                    <label class="block text-amber-200/35 text-xs mb-1"
+                      >Twitter / X</label
+                    >
+                    <input
+                      type="text"
+                      name="twitter"
+                      value={profile?.twitter ?? ""}
+                      placeholder="usuario o URL"
+                      class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <span class="text-lg w-6 text-center shrink-0">🌐</span>
+                  <div class="flex-1">
+                    <label class="block text-amber-200/35 text-xs mb-1"
+                      >Web personal</label
+                    >
+                    <input
+                      type="text"
+                      name="website"
+                      value={profile?.website ?? ""}
+                      placeholder="https://…"
+                      class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Estudios -->
+            <div>
+              <p
+                class="text-amber-200/50 font-bold tracking-widest uppercase text-xs mb-3"
+              >
+                Estudios
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2">
+                  <label class="block text-amber-200/35 text-xs mb-1"
+                    >Centro / Universidad</label
+                  >
+                  <input
+                    type="text"
+                    name="institution"
+                    value={profile?.institution ?? ""}
+                    placeholder="p.ej. Universidade da Coruña"
+                    class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-amber-200/35 text-xs mb-1"
+                    >Curso</label
+                  >
+                  <select
+                    name="year_of_study"
+                    class="w-full px-3 py-2 bg-black/50 border border-amber-400/20 rounded-lg text-amber-100 focus:outline-none focus:border-amber-400/50 transition-all text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="" class="bg-[#0a0011]">— curso —</option>
+                    {
+                      YEARS.map((y) => (
+                        <option
+                          value={y}
+                          selected={profile?.year_of_study === y}
+                          class="bg-[#0a0011]"
+                        >
+                          {y}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+
+                <div class="sm:col-span-3">
+                  <label class="block text-amber-200/35 text-xs mb-1"
+                    >¿Qué estudias?</label
+                  >
+                  <input
+                    type="text"
+                    name="degree"
+                    value={profile?.degree ?? ""}
+                    placeholder="p.ej. Ingeniería Informática"
+                    class="w-full px-3 py-2 bg-black/40 border border-amber-400/20 rounded-lg text-amber-100 placeholder-amber-100/20 focus:outline-none focus:border-amber-400/50 transition-all text-sm font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="submit"
+                class="px-8 py-2.5 bg-amber-400 text-black font-black tracking-[0.15em] uppercase text-xs rounded-lg hover:bg-amber-300 transition-all duration-300 hover:shadow-[0_0_15px_rgba(251,191,36,0.4)] hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Guardar cambios
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ── Info de cuenta (solo lectura) ── -->
+        <section
+          class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/15"
+        >
+          <div class="px-6 py-4 border-b border-amber-400/10">
+            <h2
+              class="text-amber-200/40 font-black uppercase tracking-widest text-xs"
+            >
+              Información de cuenta
+            </h2>
+          </div>
+          <div class="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label
+                class="block text-amber-200/35 font-bold tracking-wider uppercase text-xs mb-1"
+                >Correo</label
+              >
+              <div
+                class="px-4 py-3 bg-black/40 border border-amber-400/15 rounded-lg text-amber-100/70 font-mono text-sm truncate"
+              >
+                {user.email}
+              </div>
+            </div>
+            <div>
+              <label
+                class="block text-amber-200/35 font-bold tracking-wider uppercase text-xs mb-1"
                 >Miembro desde</label
               >
               <div
-                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono text-sm"
+                class="px-4 py-3 bg-black/40 border border-amber-400/15 rounded-lg text-amber-100/70 font-mono text-sm"
               >
                 {createdAt}
               </div>
             </div>
-            <div class="space-y-2">
-              <label
-                class="block text-amber-200/60 font-bold tracking-wider uppercase text-xs"
-                >Proveedor</label
-              >
-              <div
-                class="w-full px-4 py-3 bg-black/50 border border-amber-400/30 rounded-lg text-amber-100 font-mono text-sm capitalize"
-              >
-                {user?.app_metadata?.provider || "Email"}
+          </div>
+        </section>
+
+        <!-- ── Mi proyecto ── -->
+        {
+          project ? (
+            <section class="bg-black/50 backdrop-blur-sm rounded-xl border border-amber-400/25 overflow-hidden">
+              <div class="px-6 py-4 border-b border-amber-400/15 flex items-center justify-between">
+                <h2 class="text-amber-300 font-black uppercase tracking-widest text-xs">
+                  🚀 Mi proyecto
+                </h2>
+                <a
+                  href="/projects"
+                  class="text-amber-400/50 hover:text-amber-300 text-xs uppercase tracking-widest font-bold transition-colors"
+                >
+                  Ver todos →
+                </a>
               </div>
-            </div>
-          </div>
-        </div>
+              <div class="px-6 py-5 space-y-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <h3 class="text-amber-200 font-black text-xl uppercase tracking-wide">
+                    {project.name}
+                  </h3>
+                  {project.sede && (
+                    <span class="px-3 py-1 bg-amber-400/10 border border-amber-400/25 rounded-full text-amber-300 text-xs font-bold uppercase tracking-widest">
+                      📍 {project.sede}
+                    </span>
+                  )}
+                </div>
 
-        <div
-          class="mt-8 pt-6 border-t border-amber-400/20 flex flex-col sm:flex-row gap-4 items-center justify-between"
-        >
-          <a
-            href="/dashboard"
-            class="text-amber-300 hover:text-white underline decoration-amber-300 underline-offset-4 transition-colors"
-          >
-            ← Volver al Inicio
-          </a>
+                {project.challenges ? (
+                  <div class="p-4 bg-black/40 rounded-lg border border-amber-400/15 space-y-1">
+                    <p class="text-amber-200/40 text-xs uppercase tracking-widest font-bold">
+                      Challenge
+                    </p>
+                    <p class="text-amber-200 font-bold text-sm">
+                      {(project.challenges as any).title}
+                    </p>
+                    {(project.challenges as any).short_description && (
+                      <p class="text-amber-100/50 text-xs leading-relaxed">
+                        {(project.challenges as any).short_description}
+                      </p>
+                    )}
+                    {(project.challenges as any).reward && (
+                      <p class="text-amber-300 text-xs font-bold mt-1">
+                        🏆 Premio: {(project.challenges as any).reward}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p class="text-amber-100/30 text-sm italic">
+                    Sin challenge vinculado.
+                  </p>
+                )}
 
-          <div class="flex gap-3">
-            {isAdmin && (
+                <div>
+                  <p class="text-amber-200/40 text-xs uppercase tracking-widest font-bold mb-2">
+                    Equipo ({(project.project_member as any[])?.length ?? 0}{" "}
+                    miembro
+                    {(project.project_member as any[])?.length !== 1 ? "s" : ""}
+                    )
+                  </p>
+                  <div class="flex flex-wrap gap-2">
+                    {(project.project_member as any[])?.map((m: any) => (
+                      <div
+                        class={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${
+                          m.member_id === user.id
+                            ? "bg-amber-400/20 border-amber-400/50 text-amber-200"
+                            : "bg-black/40 border-amber-400/15 text-amber-100/50"
+                        }`}
+                      >
+                        <span class="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xs font-black shrink-0">
+                          {(m.profiles?.name ?? "?").charAt(0).toUpperCase()}
+                        </span>
+                        {m.profiles?.name ?? "Sin nombre"}
+                        {m.member_id === user.id && (
+                          <span class="text-amber-400/60 text-[10px]">
+                            (tú)
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p class="text-amber-100/25 text-xs">
+                  Creado el{" "}
+                  {new Date(project.created_at).toLocaleDateString("es-ES", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </p>
+              </div>
+            </section>
+          ) : (
+            <section class="bg-black/40 backdrop-blur-sm rounded-xl border border-amber-400/10 px-6 py-8 text-center">
+              <p class="text-amber-100/30 text-sm italic mb-3">
+                Aún no estás en ningún proyecto.
+              </p>
               <a
-                href="/admin"
-                class="px-6 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 rounded-lg transition-all duration-300 backdrop-blur-sm font-bold uppercase text-sm tracking-wider shadow-[0_0_10px_rgba(251,191,36,0.2)] hover:shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+                href="/projects"
+                class="inline-block px-6 py-2 bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/40 text-amber-300 rounded-lg text-xs font-bold uppercase tracking-widest transition-all"
               >
-                Panel Admin
+                Unirse o crear un proyecto →
               </a>
-            )}
-            <form action="/api/auth/signout" method="get">
-              <button
-                type="submit"
-                class="px-6 py-2 bg-red-900/50 hover:bg-red-800/60 border border-red-500/50 text-red-200 rounded-lg transition-all duration-300 backdrop-blur-sm font-bold uppercase text-sm tracking-wider shadow-[0_0_10px_rgba(220,38,38,0.2)] hover:shadow-[0_0_15px_rgba(220,38,38,0.4)]"
-              >
-                Cerrar Sesión
-              </button>
-            </form>
-          </div>
+            </section>
+          )
+        }
+
+        <!-- ── Cerrar sesión ── -->
+        <div class="flex justify-end pt-2">
+          <form action="/api/auth/signout" method="get">
+            <button
+              type="submit"
+              class="px-6 py-2.5 bg-red-900/40 hover:bg-red-800/50 border border-red-500/40 text-red-300 rounded-lg transition-all font-bold uppercase text-xs tracking-wider"
+            >
+              🚪 Cerrar sesión
+            </button>
+          </form>
         </div>
       </div>
-      <Footer />
     </div>
+    <Footer />
   </main>
 </Layout>
